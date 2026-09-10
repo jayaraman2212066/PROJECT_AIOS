@@ -31,6 +31,9 @@ modules:
       - git
       - curl
       - ramalama
+      - espeak-ng
+      - alsa-utils
+      - python3-tkinter
 
   # Module 3: Rebranding - remove upstream Fedora logos (replaces with generic/custom branding)
   - type: rpm-ostree

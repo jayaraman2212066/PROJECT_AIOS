@@ -1,0 +1,11 @@
+﻿[Desktop Entry]
+Name=J.A.R.V.I.S. Assistant
+GenericName=AI Operating System Assistant
+Comment=Ambient voice and chat assistant for PROJECT_AI_OS
+Exec=/usr/libexec/jarvis/jarvis_hud.py
+Icon=system-help
+Terminal=false
+Type=Application
+Categories=Utility;System;
+StartupNotify=true
+Keywords=ai;jarvis;assistant;voice;chat;
