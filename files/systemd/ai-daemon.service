@@ -1,0 +1,30 @@
+[Unit]
+Description=RamaLama Local AI Model Service (My AI OS)
+Documentation=https://github.com/containers/ramalama
+After=default.target network.target
+
+[Service]
+Type=simple
+# ------------------------------------------------------------------------------
+# HUGGING FACE BEST FREE OPEN-WEIGHT MODEL INTEGRATION:
+#
+# Primary Model: huggingface://Qwen/Qwen2.5-3B-Instruct-GGUF
+# - 100% Free & Open (Apache 2.0 License, un-gated, no token required).
+# - State-of-the-art benchmarks for reasoning, system commands, and tool use.
+# - Lightweight footprint (~2.5 GB RAM), ideal for fast desktop responsiveness.
+#
+# Alternative for 16GB+ RAM / Dedicated GPU systems:
+# - huggingface://Qwen/Qwen2.5-7B-Instruct-GGUF (Higher reasoning capacity)
+# - huggingface://Qwen/Qwen2.5-Coder-7B-Instruct-GGUF (Specialized for coding)
+#
+# Override per user without root permissions by setting MODEL= in:
+# ~/.config/my-ai-os/ai-daemon.env
+# ------------------------------------------------------------------------------
+Environment="MODEL=huggingface://Qwen/Qwen2.5-3B-Instruct-GGUF"
+EnvironmentFile=-%h/.config/my-ai-os/ai-daemon.env
+ExecStart=/usr/bin/ramalama serve ${MODEL}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

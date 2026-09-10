@@ -1,36 +1,52 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 # image will be published to ghcr.io/<user>/<name>
-name: template
+name: my-ai-os
 # description will be included in the image's metadata
-description: This is my personal OS image.
+description: Custom, AI-integrated Linux desktop OS based on Fedora Kinoite.
 
 # the base image to build on top of (FROM) and the version tag to use
-base-image: ghcr.io/ublue-os/silverblue-main
-image-version: latest # You can pin to a specific version of Fedora as well
+base-image: ghcr.io/ublue-os/kinoite-main
+image-version: 44 # Pinned to Fedora Kinoite 44
 
-# module configuration, executed in order
+# module configuration, executed in orde
 # you can include multiple instances of the same module
 modules:
   - type: files
     files:
       - source: system
-        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
+        destination: / # copies files/system/* into image root folder /
 
-  - type: dnf
-    repos:
-      copr:
-        - atim/starship
+  # Module 1: Add RPM Fusion Free and Nonfree repositories
+  - type: rpm-ostree
     install:
-      packages:
-        - micro
-        - starship
+      - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-%OS_VERSION%.noarch.rpm
+      - https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-%OS_VERSION%.noarch.rpm
+
+  # Module 2: Core container tools, Git, Curl, and RamaLama AI runtime
+  - type: rpm-ostree
+    install:
+      - podman
+      - distrobox
+      - git
+      - curl
+      - ramalama
+
+  # Module 3: Rebranding - remove upstream Fedora logos (replaces with generic/custom branding)
+  - type: rpm-ostree
     remove:
-      packages:
-        # example: removing firefox (in favor of the flatpak)
-        # "firefox" is the main package, "firefox-langpacks" is a dependency
-        - firefox
-        - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
+      - fedora-logos
+
+  # Module 4: Rebranding - copy branding assets to /usr/share/my-ai-os/
+  - type: files
+    files:
+      - source: branding
+        destination: /usr/share/my-ai-os
+
+  # Module 5: AI Daemon Integration - Enable RamaLama user unit
+  - type: script
+    scripts:
+      - setup-ai-daemon.sh
 
   - type: default-flatpaks
     configurations:
@@ -39,7 +55,6 @@ modules:
         # If no repo information is specified, Flathub will be used by default
         install: # system flatpaks we want all users to have and not remove
           - org.mozilla.firefox
-          - org.gnome.Loupe
       - scope: user # Also add Flathub user repo, but no user packages
 
-  - type: signing # this sets up the proper policy & signing files for signed images to work fully
+  - type: signing # sets up proper policy & signing files for signed images to work fully
