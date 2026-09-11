@@ -1624,6 +1624,22 @@ def refine_prompt_and_plan(text, history=None):
             "reply": "Audio unmuted, sir."
         }
 
+    # 17. SYSTEM POWER STATE (REBOOT / SHUTDOWN)
+    if any(k in t for k in ["reboot", "restart computer", "restart system", "restart the system", "reboot the system"]):
+        return check_and_execute_or_defer(
+            "run_command", {"command": "systemctl reboot"},
+            "Initiate operating system reboot.",
+            "1. Request administrator authorization. 2. Issue systemctl reboot.",
+            "Rebooting operating system, sir."
+        )
+    if any(k in t for k in ["shutdown", "poweroff", "turn off computer", "power off", "shut down"]):
+        return check_and_execute_or_defer(
+            "run_command", {"command": "systemctl poweroff"},
+            "Initiate operating system power-off.",
+            "1. Request administrator authorization. 2. Issue systemctl poweroff.",
+            "Powering down operating system, sir."
+        )
+
     # ----------------------------------------------------
     # TIER 2: LOCAL LLM ANTIGRAVITY PROMPT REFINER & PLANNER
     # ----------------------------------------------------
@@ -1781,12 +1797,16 @@ class JarvisHandler(BaseHTTPRequestHandler):
                 desc = GEMINI_VOICES[v_name]["style"]
                 announcement = f"Voice persona set to {v_name}. {desc}"
                 speak(announcement, voice_name=v_name)
-                res = {"status": "success", "active_voice": v_name, "message": announcement}
+                res = {"status": "ok", "active_voice": v_name, "message": announcement}
             else:
                 res = {"status": "error", "message": f"Unknown voice: {v_name}"}
+            body_res = json.dumps(res).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body_res)))
             self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(body_res)
         elif self.path == "/speak_preview":
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length).decode("utf-8")
