@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J0K AI ASSISTANT — Ambient Voice & Showcase</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        body {
+            background-color: #060913;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 1. PERSISTENT RIGHT-SIDE STAR SHAPE BUTTON */
+        .right-star-dock {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 76px;
+            height: 76px;
+            background: radial-gradient(circle, #f59e0b 0%, #b45309 80%, #78350f 100%);
+            border: 2.5px solid #fef08a;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.7), inset 0 0 15px #ffe066;
+            z-index: 10000;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            user-select: none;
+            animation: pulseGlow 2.5s infinite alternate;
+        }
+        .right-star-dock:hover {
+            transform: translateY(-50%) scale(1.15);
+            box-shadow: 0 0 45px rgba(245, 158, 11, 1), 0 0 20px #00e5ff;
+            border-color: #ffffff;
+        }
+        .right-star-icon {
+            font-size: 32px;
+            line-height: 1;
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.9));
+        }
+        .right-star-label {
+            font-size: 9px;
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: 0.8px;
+            text-shadow: 0 1px 3px #000000;
+            margin-top: 1px;
+        }
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.5); }
+            100% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.85), 0 0 15px rgba(0, 229, 255, 0.4); }
+        }
+
+        /* 2. J0K AI ASSISTANT SHOWCASE POPUP */
+        .hud-container {
+            width: 100%;
+            max-width: 660px;
+            background: rgba(13, 21, 39, 0.92);
+            border: 2px solid #00e5ff;
+            box-shadow: 0 0 45px rgba(0, 229, 255, 0.3), inset 0 0 20px rgba(0, 229, 255, 0.15);
+            border-radius: 20px;
+            padding: 26px;
+            backdrop-filter: blur(14px);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 1;
+            transform: scale(1);
+        }
+        .hud-container.hidden {
+            opacity: 0;
+            transform: scale(0.92) translateX(40px);
+            pointer-events: none;
+            display: none;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 12px;
+        }
+        .title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 19px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
+            color: #00e5ff;
+            text-shadow: 0 0 12px rgba(0, 229, 255, 0.6);
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .status-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            letter-spacing: 0.8px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid #10b981;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .close-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .arc-reactor {
+            width: 100px;
+            height: 100px;
+            margin: 4px auto;
+            border-radius: 50%;
+            border: 3px dashed #00e5ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            animation: rotate 12s linear infinite;
+            cursor: pointer;
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
+        }
+        .arc-reactor.listening {
+            border-color: #f59e0b;
+            box-shadow: 0 0 35px rgba(245, 158, 11, 0.7);
+            animation: pulse 1.5s ease-in-out infinite, rotate 6s linear infinite;
+        }
+        .arc-inner {
+            width: 66px;
+            height: 66px;
+            background: radial-gradient(circle, #38bdf8 0%, #0284c7 60%, transparent 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        .voice-state {
+            text-align: center;
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+        }
+
+        .transcript-box {
+            background: #070b14;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            min-height: 280px;
+            max-height: 420px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 13px;
+        }
+        .msg {
+            padding: 10px 14px;
+            border-radius: 10px;
+            max-width: 90%;
+            line-height: 1.45;
+        }
+        .msg.user {
+            align-self: flex-end;
+            background: #1e3a8a;
+            color: #ffffff;
+            border: 1px solid #2563eb;
+        }
+        .msg.j0k {
+            align-self: flex-start;
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #0284c7;
+        }
+        .thought-card {
+            background: rgba(15, 23, 42, 0.9);
+            border-left: 3px solid #00e5ff;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+        .thought-badge {
+            display: inline-block;
+            background: rgba(0, 229, 255, 0.15);
+            color: #00e5ff;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            letter-spacing: 0.8px;
+        }
+        .action-tag {
+            display: inline-block;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-top: 5px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+        }
+        input[type="text"] {
+            flex: 1;
+            background: #070b14;
+            border: 1px solid #0284c7;
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #ffffff;
+            font-size: 13px;
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: #00e5ff;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+        }
+        button.btn {
+            background: #0284c7;
+            color: #ffffff;
+            border: 1px solid #38bdf8;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button.btn:hover {
+            background: #0369a1;
+            border-color: #00e5ff;
+        }
+
+        /* 3. REALISTIC GEMINI VOICE PERSONA SELECTOR */
+        .voice-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #070c18;
+            border: 1px solid #1e3a5f;
+            border-radius: 12px;
+            padding: 8px 14px;
+            gap: 12px;
+        }
+        .voice-bar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        .voice-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        select#voiceSelect {
+            flex: 1;
+            background: #0b1324;
+            border: 1px solid #0284c7;
+            color: #38bdf8;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+        }
+        select#voiceSelect:focus {
+            border-color: #00e5ff;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+        }
+        .test-voice-btn {
+            background: #1e293b;
+            color: #38bdf8;
+            border: 1px solid #38bdf8;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .test-voice-btn:hover {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #00e5ff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. PERSISTENT RIGHT-SIDE STAR SHAPE BUTTON -->
+    <div class="right-star-dock" id="rightStarBtn" onclick="toggleShowcase()" title="⭐ Press to Show J0K AI ASSISTANT Showcase">
+        <div class="right-star-icon">⭐</div>
+        <div class="right-star-label">J0K</div>
+    </div>
+
+    <!-- 2. J0K AI ASSISTANT SHOWCASE POPUP -->
+    <div class="hud-container" id="showcaseContainer">
+        <div class="header">
+            <div class="title">
+                <span>⭐</span>
+                <span>J0K AI ASSISTANT SHOWCASE</span>
+            </div>
+            <div class="header-actions">
+                <div class="status-badge" id="statusBadge">
+                    <span id="statusDot">●</span>
+                    <span id="statusText">J0K ONLINE</span>
+                </div>
+                <button class="close-btn" onclick="toggleShowcase()" title="Fold to Star Button">✕</button>
+            </div>
+        </div>
+
+        <!-- Realistic Gemini Voice Persona Selection Bar -->
+        <div class="voice-bar">
+            <div class="voice-bar-left">
+                <span class="voice-label">🎙️ Human Voice Persona:</span>
+                <select id="voiceSelect" onchange="changeVoicePersona(this.value)">
+                    <option value="Charon">Charon — Deep & Calm (Gemini Style)</option>
+                    <option value="Puck">Puck — Upbeat & Friendly (Gemini Style)</option>
+                    <option value="Aoede">Aoede — Warm & Articulate (Gemini Style)</option>
+                    <option value="Kore">Kore — Gentle & Conversational (Gemini Style)</option>
+                    <option value="Fenrir">Fenrir — Sharp & Executive (Gemini Style)</option>
+                </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="audioBridgeBadge" style="font-size:11px; font-weight:700; color:#10b981; padding:3px 8px; border-radius:12px; background:rgba(16,185,129,0.1); border:1px solid #10b981;">🔊 PC Speakers: Active</span>
+                <button class="test-voice-btn" onclick="previewCurrentVoice()">▶ Test Voice</button>
+            </div>
+        </div>
+
+        <div class="arc-reactor" id="arcReactor" onclick="toggleVoiceListening()">
+            <div class="arc-inner" id="arcInner">🎙️</div>
+        </div>
+
+        <div class="voice-state" id="voiceState">
+            Click Arc to Activate Ambient Listening, or Speak directly
+        </div>
+
+        <div class="transcript-box" id="transcriptBox">
+            <div class="msg j0k">
+                <b>⭐ J0K AI ASSISTANT:</b> All systems nominal. I am J0K AI ASSISTANT, ready to execute any desktop directive or answer any question, sir.
+            </div>
+        </div>
+
+
+
+        <div class="input-row">
+            <input type="text" id="commandInput" placeholder="Speak aloud or type instruction for J0K AI ASSISTANT..." onkeydown="if(event.key==='Enter') submitText()">
+            <button class="btn" onclick="submitText()">SEND</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:9090";
+        let isListening = false;
+        let recognition = null;
+        let history = [];
+
+        function toggleShowcase() {
+            const container = document.getElementById("showcaseContainer");
+            if (container.classList.contains("hidden")) {
+                container.classList.remove("hidden");
+                container.style.display = "flex";
+            } else {
+                container.classList.add("hidden");
+            }
+        }
+
+        // Speech recognition setup
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isListening = true;
+                updateVoiceUI(true);
+            };
+
+            recognition.onend = () => {
+                if (isListening) {
+                    try { recognition.start(); } catch(e){}
+                } else {
+                    updateVoiceUI(false);
+                }
+            };
+
+            recognition.onresult = (event) => {
+                const last = event.results.length - 1;
+                const transcript = event.results[last][0].transcript.trim();
+                if (transcript) {
+                    console.log("Heard voice:", transcript);
+                    // Make sure showcase is visible when voice is detected
+                    document.getElementById("showcaseContainer").classList.remove("hidden");
+                    document.getElementById("showcaseContainer").style.display = "flex";
+                    sendCommand(transcript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.warn("Speech recognition error:", event.error);
+                if (event.error === 'not-allowed') {
+                    isListening = false;
+                    updateVoiceUI(false);
+                    document.getElementById('voiceState').innerText = "Microphone access blocked. Click Arc to re-enable.";
+                }
+            };
+        }
+
+        function toggleVoiceListening() {
+            if (!recognition) {
+                alert("Speech recognition not supported in this browser. Please use Chrome or Edge.");
+                return;
+            }
+            if (!isListening) {
+                try {
+                    isListening = true;
+                    recognition.start();
+                    updateVoiceUI(true);
+                } catch(e) {
+                    console.error("Error starting mic:", e);
+                }
+            } else {
+                isListening = false;
+                try { recognition.stop(); } catch(e){}
+                updateVoiceUI(false);
+            }
+        }
+
+        function updateVoiceUI(listening) {
+            const arc = document.getElementById("arcReactor");
+            const state = document.getElementById("voiceState");
+            if (listening) {
+                arc.classList.add("listening");
+                state.innerText = "🔴 Listening... Speak naturally to J0K AI ASSISTANT";
+                state.style.color = "#f59e0b";
+            } else {
+                arc.classList.remove("listening");
+                state.innerText = "Click Arc or speak to J0K AI ASSISTANT";
+                state.style.color = "#94a3b8";
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function appendMessage(sender, content, isHtml=false) {
+            const box = document.getElementById("transcriptBox");
+            const div = document.createElement("div");
+            div.className = sender === 'user' ? 'msg user' : 'msg j0k';
+            const prefix = sender === 'user' ? '<b>You:</b> ' : '<b>⭐ J0K AI ASSISTANT:</b> ';
+            if (isHtml) {
+                div.innerHTML = prefix + content;
+            } else {
+                div.innerHTML = prefix + escapeHtml(content);
+            }
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function submitText() {
+            const input = document.getElementById("commandInput");
+            const val = input.value.trim();
+            if (val) {
+                input.value = "";
+                sendCommand(val);
+            }
+        }
+
+        let currentAudio = null;
+        window.isBridgeActive = false;
+
+        function playRealisticSpeech(text, voiceName) {
+            // When Windows Host Audio Bridge is active, it directly plays through physical PC speakers
+            if (window.isBridgeActive) {
+                console.log("Audio output handled directly by Windows Host Audio Bridge via PC speakers.");
+                return;
+            }
+            const v = voiceName || document.getElementById("voiceSelect").value;
+            const cleanText = text.replace(/[*_`#]/g, '').trim();
+            if (!cleanText) return;
+
+            if (currentAudio) {
+                try { currentAudio.pause(); } catch(e){}
+            }
+            const ttsUrl = `${API_BASE}/tts?text=${encodeURIComponent(cleanText)}&voice=${encodeURIComponent(v)}`;
+            currentAudio = new Audio(ttsUrl);
+            currentAudio.play().catch(e => console.warn("Audio autoplay blocked or interrupted:", e));
+        }
+
+        async function changeVoicePersona(voiceName) {
+            try {
+                await fetch(`${API_BASE}/set_voice`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ voice: voiceName })
+                });
+                previewCurrentVoice();
+            } catch(e) {
+                console.error("Error setting voice persona:", e);
+            }
+        }
+
+        async function previewCurrentVoice() {
+            const v = document.getElementById("voiceSelect").value;
+            const testText = `Greetings! I am J0K AI ASSISTANT speaking with the realistic ${v} voice persona.`;
+            if (window.isBridgeActive) {
+                try {
+                    await fetch(`${API_BASE}/speak_preview`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: testText, voice: v })
+                    });
+                } catch(e) {
+                    playRealisticSpeech(testText, v);
+                }
+            } else {
+                playRealisticSpeech(testText, v);
+            }
+        }
+
+        async function sendCommand(promptText) {
+            appendMessage("user", promptText);
+            const statusText = document.getElementById("statusText");
+            const statusBadge = document.getElementById("statusBadge");
+            const activeVoice = document.getElementById("voiceSelect").value;
+
+            statusText.innerText = "PROCESSING...";
+            statusBadge.style.color = "#38bdf8";
+            statusBadge.style.borderColor = "#38bdf8";
+
+            try {
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt: promptText,
+                        history: history.slice(-6),
+                        voice: activeVoice
+                    })
+                });
+
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                const data = await response.json();
+                const reply = data.reply || "Directive executed, sir.";
+
+                let responseHtml = "";
+                if (data.refined_prompt) {
+                    responseHtml += `<div class="thought-card">
+                        <div class="thought-badge">🎯 ANTIGRAVITY REFINED DIRECTIVE</div>
+                        <div style="color:#f8fafc; font-weight:700; margin-bottom:5px;">${escapeHtml(data.refined_prompt)}</div>`;
+                    if (data.plan) {
+                        responseHtml += `<div style="color:#94a3b8; font-size:11px; margin-bottom:4px;">📋 <b>Plan:</b> ${escapeHtml(data.plan)}</div>`;
+                    }
+                    if (data.action && data.action.message) {
+                        responseHtml += `<div class="action-tag">⚡ ${escapeHtml(data.action.message)}</div>`;
+                    }
+                    responseHtml += `</div>`;
+                }
+                responseHtml += `<div style="font-size:13px; line-height:1.45;">${escapeHtml(reply)}</div>`;
+                appendMessage("j0k", responseHtml, true);
+
+                // Play realistic neural voice through PC speakers (or fallback to browser)
+                playRealisticSpeech(reply, data.voice || activeVoice);
+
+                history.push({ role: "user", content: promptText });
+                history.push({ role: "assistant", content: reply });
+
+                statusText.innerText = "J0K ONLINE";
+                statusBadge.style.color = "#10b981";
+                statusBadge.style.borderColor = "#10b981";
+            } catch (err) {
+                console.error("Fetch error:", err);
+                appendMessage("j0k", "Connection to J0K daemon failed. Ensure the OS is running.");
+                statusText.innerText = "OFFLINE";
+                statusBadge.style.color = "#ef4444";
+                statusBadge.style.borderColor = "#ef4444";
+            }
+        }
+
+        // Initial health check & voice synchronization
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/status`, { timeout: 2000 });
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById("statusText").innerText = "J0K ONLINE";
+                    document.getElementById("statusBadge").style.color = "#10b981";
+                    document.getElementById("statusBadge").style.borderColor = "#10b981";
+                    if (data.active_voice && document.getElementById("voiceSelect").value !== data.active_voice) {
+                        document.getElementById("voiceSelect").value = data.active_voice;
+                    }
+                    window.isBridgeActive = !!data.bridge_active;
+                    const bBadge = document.getElementById("audioBridgeBadge");
+                    if (bBadge) {
+                        if (window.isBridgeActive) {
+                            bBadge.innerText = "🔊 PC Speakers: Active";
+                            bBadge.style.color = "#10b981";
+                            bBadge.style.borderColor = "#10b981";
+                            bBadge.style.background = "rgba(16,185,129,0.1)";
+                        } else {
+                            bBadge.innerText = "🔈 Browser Audio";
+                            bBadge.style.color = "#94a3b8";
+                            bBadge.style.borderColor = "#475569";
+                            bBadge.style.background = "transparent";
+                        }
+                    }
+                }
+            } catch(e){}
+        }
+        setInterval(checkStatus, 5000);
+        checkStatus();
+    </script>
+</body>
+</html>
