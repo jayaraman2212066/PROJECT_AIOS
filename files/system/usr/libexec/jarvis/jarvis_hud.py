@@ -141,10 +141,29 @@ class StarButton(QWidget):
         painter.setPen(QPen(QColor(255, 255, 255, 220), 1.2))
         painter.drawPath(star_path)
 
-        # 4. Center J0K Badge
-        painter.setFont(QFont("Segoe UI", 7, QFont.Bold))
-        painter.setPen(QColor(10, 15, 29))
-        painter.drawText(QRectF(cx - 15, cy - 6, 30, 12), Qt.AlignCenter, "J0K")
+        # 4. Center Core Shield & Prominent "J" Emblem
+        core_r = 13.5 if not self.hovered else 14.5
+        core_rect = QRectF(cx - core_r, cy - core_r + 0.5, core_r * 2, core_r * 2)
+        core_grad = QRadialGradient(cx, cy + 0.5, core_r)
+        core_grad.setColorAt(0.0, QColor(15, 23, 42, 245))
+        core_grad.setColorAt(0.8, QColor(7, 11, 20, 250))
+        core_grad.setColorAt(1.0, QColor(0, 229, 255, 220))
+        painter.setBrush(QBrush(core_grad))
+        painter.setPen(QPen(QColor(0, 229, 255) if self.hovered else QColor(245, 158, 11), 1.6))
+        painter.drawEllipse(core_rect)
+
+        # Prominent Capital "J"
+        j_font = QFont("Ubuntu", 14, QFont.Bold)
+        j_font.setStyleStrategy(QFont.PreferAntialias)
+        painter.setFont(j_font)
+
+        # Drop shadow
+        painter.setPen(QColor(0, 0, 0, 220))
+        painter.drawText(QRectF(cx - 15, cy - 14, 30, 30), Qt.AlignCenter, "J")
+
+        # Crisp foreground letter "J"
+        painter.setPen(QColor(255, 255, 255) if not self.hovered else QColor(0, 229, 255))
+        painter.drawText(QRectF(cx - 15, cy - 15, 30, 30), Qt.AlignCenter, "J")
 
     def enterEvent(self, event):
         self.hovered = True
