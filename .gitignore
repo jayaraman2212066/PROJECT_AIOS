@@ -1,10 +1,9 @@
 cosign.key
 cosign.private
 /Containerfile
-*.iso
-*.iso-CHECKSUM
 /.bluebuild-scripts_*
 PROJECT_BRIEF.md
+JOK-AI-OS-v1.0-x86_64.iso
 
 # Scratch and test files
 scratch/
