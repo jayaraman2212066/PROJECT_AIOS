@@ -197,6 +197,7 @@ def synthesize_audio_sync(text, voice_name=None, return_wav=False):
 
 LAST_BRIDGE_TIME = 0
 SPEECH_QUEUE = []
+HUD_EVENTS = []
 
 def speak(text, voice_name=None):
     """Speaks text using realistic human neural speech with fallback and host synchronization."""
@@ -225,7 +226,127 @@ def speak(text, voice_name=None):
         except Exception as e:
             print(f"[J0K Voice] TTS Playback Error: {e}", file=sys.stderr)
 
-    threading.Thread(target=_run, daemon=True).start()
+PENDING_CRITICAL_ACTIONS = {}
+
+CRITICAL_SYSTEM_DIRS = {
+    "/", "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib", "/lib64", "/opt",
+    "/sys", "/dev", "/root", "/proc", "/home", "/home/jayaramank",
+    "/home/jayaramank/Documents", "/home/jayaramank/Desktop", "/home/jayaramank/Pictures", "/home/jayaramank/Projects"
+}
+
+CRITICAL_SERVICES = {
+    "dbus", "systemd", "systemd-logind", "sshd", "firewalld", "NetworkManager",
+    "display-manager", "sddm", "gdm", "lightdm", "kwin", "plasma", "auditd"
+}
+
+CRITICAL_PROCESSES = {
+    "systemd", "init", "dbus-daemon", "dbus-broker", "sshd", "kwin_wayland",
+    "wireplumber", "pipewire", "Xwayland", "plasma-workspace"
+}
+
+def is_critical_operation(action_name, params):
+    """
+    Evaluates whether an operation is critical or destructive and requires explicit user permission.
+    Returns: (is_critical: bool, reason: str, brief_desc: str)
+    """
+    if not action_name or not params:
+        return False, "", ""
+
+    if action_name == "manage_file_folder":
+        op = str(params.get("operation", "")).lower()
+        src = str(params.get("source", "")).strip()
+        if op == "delete":
+            clean_src = os.path.normpath(src if src.startswith("/") else os.path.join("/home/jayaramank", src))
+            if clean_src in CRITICAL_SYSTEM_DIRS or any(clean_src == d or clean_src.startswith(d + "/") for d in ["/etc", "/usr", "/boot", "/var", "/sys", "/dev"]):
+                return True, f"Deleting important system directory or files at '{clean_src}'", f"permanently delete important directory '{clean_src}'"
+            if clean_src in ["/home", "/home/jayaramank"]:
+                return True, f"Deleting user root directory '{clean_src}'", f"permanently erase user directory '{clean_src}'"
+
+    elif action_name == "manage_process":
+        op = str(params.get("operation", "")).lower()
+        pname = str(params.get("process_name", "")).lower()
+        if op == "kill":
+            for crit_p in CRITICAL_PROCESSES:
+                if crit_p in pname:
+                    return True, f"Terminating essential system process '{pname}'", f"terminate core system process '{pname}'"
+
+    elif action_name == "run_command":
+        cmd = str(params.get("command", "")).strip().lower()
+        # 1. Directory deletion commands (rm -rf /, /etc, etc.)
+        rm_match = re.search(r'\brm\s+-[a-zA-Z]*r[a-zA-Z]*f?\s+([^\s;&|]+)', cmd) or re.search(r'\brm\s+-[a-zA-Z]*f[a-zA-Z]*r?\s+([^\s;&|]+)', cmd)
+        if rm_match:
+            target = rm_match.group(1).strip().strip('"\'')
+            if target in ["/", "/*", "/etc", "/etc/*", "/usr", "/var", "/boot", "/home", "~", "$HOME", "/home/jayaramank", "/root"]:
+                return True, f"Recursive removal of critical path '{target}'", f"permanently erase '{target}'"
+            for d in ["/etc", "/usr", "/boot", "/var", "/sys", "/dev"]:
+                if target.startswith(d):
+                    return True, f"Recursive removal of critical directory '{target}'", f"permanently erase directory '{target}'"
+
+        # 2. Critical system service termination
+        for svc in CRITICAL_SERVICES:
+            if re.search(rf'\bsystemctl\s+(?:stop|disable|mask)\s+{svc}', cmd):
+                return True, f"Stopping or disabling essential system service '{svc}'", f"shut down essential service '{svc}'"
+
+        # 3. Critical process kill
+        if re.search(r'\b(?:pkill|killall|kill)\s+(?:-9\s+)?(?:systemd|init|dbus|kwin|sshd)\b', cmd):
+            return True, f"Force-killing critical system daemon", f"terminate core system service"
+
+        # 4. Raw disk and filesystem destruction
+        if any(d_cmd in cmd for d_cmd in ["mkfs", "wipefs", "fdisk", "parted"]) or re.search(r'\bdd\s+.*of=/dev/(?:sd|nvme|vd)', cmd):
+            return True, f"Destructive raw disk or filesystem modification: '{cmd[:60]}'", f"wipe or repartition storage devices"
+
+        # 5. Power & shutdown
+        if any(p_cmd in cmd for p_cmd in ["poweroff", "shutdown", "reboot", "init 0", "init 6", "halt"]):
+            return True, f"System power or shutdown directive: '{cmd[:40]}'", f"shut down or reboot the computer"
+
+    return False, "", ""
+
+def check_and_execute_or_defer(action_name, params, refined_prompt, plan, default_reply, voice=None):
+    """
+    Checks if an operation is critical. If critical, pauses execution and prepares a permission request.
+    If non-critical, executes immediately with full administrator permissions.
+    """
+    is_crit, reason, brief_desc = is_critical_operation(action_name, params)
+    if is_crit:
+        import uuid
+        action_id = f"crit_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        PENDING_CRITICAL_ACTIONS[action_id] = {
+            "action_id": action_id,
+            "action_name": action_name,
+            "params": params,
+            "warning": reason,
+            "brief_desc": brief_desc,
+            "refined_prompt": refined_prompt,
+            "plan": plan,
+            "created_at": time.time(),
+            "voice": voice
+        }
+        warning_msg = f"⚠️ CRITICAL ACTION PERMISSION REQUIRED: {reason}. Operating system integrity safeguard engaged."
+        spoken_warning = f"Warning: this is a critical system operation that will {brief_desc}. Do you grant permission to proceed, sir?"
+        return {
+            "requires_permission": True,
+            "action_id": action_id,
+            "warning": warning_msg,
+            "brief_desc": brief_desc,
+            "refined_prompt": refined_prompt,
+            "plan": f"1. Identify high-risk directive: {reason}. 2. Suspend execution. 3. Await explicit administrator confirmation.",
+            "action": {
+                "status": "pending_permission",
+                "action_id": action_id,
+                "message": warning_msg
+            },
+            "reply": spoken_warning
+        }
+    else:
+        # Non-critical: execute immediately with full administrative privileges
+        act = execute_action(action_name, params)
+        return {
+            "requires_permission": False,
+            "refined_prompt": refined_prompt,
+            "plan": plan,
+            "action": act,
+            "reply": default_reply
+        }
 
 def execute_action(action_name, params):
     """Executes system actions on behalf of the user with full error recovery."""
@@ -693,14 +814,23 @@ python3 main.py
         elif action_name == "run_command":
             cmd = params.get("command", "").strip()
             if cmd:
+                user_env = os.environ.copy()
+                user_env["WAYLAND_DISPLAY"] = "wayland-0"
+                user_env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+                user_env["DISPLAY"] = ":0"
+                user_env["HOME"] = "/home/jayaramank"
                 proc = subprocess.run(
-                    ["sudo", "-u", "jayaramank", "-E", "bash", "-c", cmd],
+                    cmd,
+                    shell=True,
+                    executable="/bin/bash",
+                    env=user_env,
                     capture_output=True,
                     text=True,
-                    timeout=15
+                    timeout=30
                 )
                 output = (proc.stdout + proc.stderr).strip()
                 result["output"] = output[:1000]
+                result["message"] = f"Executed directive: {output[:120]}" if output else "Command executed successfully with administrator privileges."
         elif action_name == "window_action":
             win_act = params.get("action", "switch").lower()
             kwin_map = {
@@ -936,13 +1066,18 @@ Available actions:
             if m:
                 parsed = json.loads(m.group(0))
                 act_data = parsed.get("action")
-                act_result = None
                 if act_data and isinstance(act_data, dict) and "action" in act_data:
-                    act_result = execute_action(act_data["action"], act_data.get("parameters", {}))
+                    return check_and_execute_or_defer(
+                        act_data["action"],
+                        act_data.get("parameters", {}),
+                        parsed.get("refined_prompt", f"Process user directive: '{user_message}'"),
+                        parsed.get("plan", "1. Execute planned steps autonomously."),
+                        parsed.get("reply", "I have processed your directive, sir.")
+                    )
                 return {
                     "refined_prompt": parsed.get("refined_prompt", f"Process user directive: '{user_message}'"),
                     "plan": parsed.get("plan", "1. Execute planned steps autonomously."),
-                    "action": act_result,
+                    "action": None,
                     "reply": parsed.get("reply", "I have processed your directive, sir.")
                 }
     except Exception as e:
@@ -963,6 +1098,36 @@ def refine_prompt_and_plan(text, history=None):
     and formulates the concise executive spoken response.
     """
     t = text.lower().strip()
+
+    # 0. PENDING CRITICAL ACTION CONFIRMATION / REJECTION
+    now = time.time()
+    expired = [k for k, v in PENDING_CRITICAL_ACTIONS.items() if now - v["created_at"] > 120]
+    for k in expired:
+        del PENDING_CRITICAL_ACTIONS[k]
+
+    if PENDING_CRITICAL_ACTIONS:
+        latest_act_id = list(PENDING_CRITICAL_ACTIONS.keys())[-1]
+        pending = PENDING_CRITICAL_ACTIONS[latest_act_id]
+        if t in ["yes", "allow", "confirm", "proceed", "do it", "grant", "permission granted", "yes do it", "ok proceed", "i allow", "allow it", "yes proceed"]:
+            del PENDING_CRITICAL_ACTIONS[latest_act_id]
+            act = execute_action(pending["action_name"], pending["params"])
+            reply_msg = f"Permission granted, sir. Critical operation executed: {act.get('message', 'Completed.')}"
+            return {
+                "requires_permission": False,
+                "refined_prompt": f"Execute approved critical directive: '{pending['brief_desc']}'.",
+                "plan": f"1. User granted explicit permission. 2. Execute {pending['action_name']} with root privileges.",
+                "action": act,
+                "reply": reply_msg
+            }
+        elif t in ["no", "deny", "cancel", "stop", "abort", "don't do it", "dont do it", "reject", "nevermind"]:
+            del PENDING_CRITICAL_ACTIONS[latest_act_id]
+            return {
+                "requires_permission": False,
+                "refined_prompt": f"Abort and purge critical directive: '{pending['brief_desc']}'.",
+                "plan": "1. User denied permission. 2. Purge pending critical operation without executing.",
+                "action": {"status": "canceled", "message": "Operation denied by user."},
+                "reply": "Critical operation canceled, sir. No changes were made to your operating system."
+            }
 
     # 1. GREETINGS & IDENTITY
     if any(k in t for k in ["who are you", "what is your name", "identify yourself"]):
@@ -1034,13 +1199,12 @@ def refine_prompt_and_plan(text, history=None):
     cmd_match = re.search(r'(?:run\s+command|execute\s+command)[:\s]+(.*)', text, re.IGNORECASE)
     if cmd_match:
         sh_cmd = cmd_match.group(1).strip()
-        act = execute_action("run_command", {"command": sh_cmd})
-        return {
-            "refined_prompt": f"Execute user shell directive '{sh_cmd}' with safety sandbox.",
-            "plan": f"1. Validate command syntax. 2. Run in user session. 3. Capture stdout/stderr.",
-            "action": act,
-            "reply": f"Command executed, sir. {act.get('message', '')}"
-        }
+        return check_and_execute_or_defer(
+            "run_command", {"command": sh_cmd},
+            f"Execute user shell directive '{sh_cmd}' with administrator authority.",
+            f"1. Validate command syntax. 2. Verify critical safeguards. 3. Execute with root authority.",
+            f"Command executed, sir."
+        )
 
     # 4. NOTES & KNOWLEDGE BASE
     note_match = re.search(r'(?:take\s+a?\s*note|write\s+a?\s*note|remember\s+that)[:\s]+(.*)', text, re.IGNORECASE)
@@ -1269,16 +1433,38 @@ def refine_prompt_and_plan(text, history=None):
             "action": act,
             "reply": f"Extracted archive '{uz_target}', sir."
         }
-    del_match = re.search(r'(?:delete|remove)\s+file[:\s]+([a-zA-Z0-9_\-\s\.\/]+)', text, re.IGNORECASE)
-    if del_match:
+    del_match = re.search(r'(?:delete|remove|erase)\s+(?:file\s+|folder\s+|directory\s+)?([a-zA-Z0-9_\-\s\.\/]+)', text, re.IGNORECASE)
+    if del_match and not any(k in t for k in ["window", "note", "app", "service", "task"]):
         del_target = del_match.group(1).strip()
-        act = execute_action("manage_file_folder", {"operation": "delete", "source": del_target})
-        return {
-            "refined_prompt": f"Remove file '{del_target}' from filesystem.",
-            "plan": f"1. Locate file. 2. Safely remove path {del_target}.",
-            "action": act,
-            "reply": f"Removed file '{del_target}', sir."
-        }
+        return check_and_execute_or_defer(
+            "manage_file_folder", {"operation": "delete", "source": del_target},
+            f"Remove target '{del_target}' from filesystem.",
+            f"1. Locate target. 2. Verify critical directory safeguards. 3. Remove path {del_target}.",
+            f"Removed '{del_target}', sir."
+        )
+
+    # 12. SERVICE & PROCESS TERMINATION
+    svc_stop_match = re.search(r'(?:stop|end|kill|disable|terminate)\s+(?:service|daemon)[:\s]+([a-zA-Z0-9_\-\.]+)', text, re.IGNORECASE)
+    if not svc_stop_match:
+        svc_stop_match = re.search(r'(?:stop|disable)\s+([a-zA-Z0-9_\-\.]+)\s+service', text, re.IGNORECASE)
+    if svc_stop_match and not any(k in t for k in ["window", "app", "note"]):
+        svc_target = svc_stop_match.group(1).strip()
+        return check_and_execute_or_defer(
+            "run_command", {"command": f"systemctl stop {svc_target}"},
+            f"Shut down system service '{svc_target}'.",
+            f"1. Check service state. 2. Verify critical system dependencies. 3. Stop {svc_target}.",
+            f"Service '{svc_target}' stopped, sir."
+        )
+
+    end_task_match = re.search(r'(?:end\s+task|kill\s+process|terminate\s+process)[:\s]+([a-zA-Z0-9_\-\.]+)', text, re.IGNORECASE)
+    if end_task_match and not any(k in t for k in ["window"]):
+        proc_target = end_task_match.group(1).strip()
+        return check_and_execute_or_defer(
+            "manage_process", {"operation": "kill", "process_name": proc_target},
+            f"Terminate task/process '{proc_target}'.",
+            f"1. Locate process. 2. Check process criticality. 3. Send termination signal.",
+            f"Terminated process '{proc_target}', sir."
+        )
 
     # 12. PROCESS DIAGNOSTICS
     if any(k in t for k in ["top processes", "what is using memory", "cpu usage", "task list", "running processes"]):
@@ -1502,6 +1688,24 @@ class JarvisHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        elif self.path.startswith("/hud_poll"):
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            last_id = qs.get("last_id", [""])[0]
+            if HUD_EVENTS and HUD_EVENTS[-1]["id"] != last_id:
+                latest = HUD_EVENTS[-1]
+                res = {"has_new": True, "event": latest}
+            else:
+                res = {"has_new": False}
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(body)
+            return
         elif self.path == "/status":
             body = json.dumps({
                 "status": "online",
@@ -1595,6 +1799,58 @@ class JarvisHandler(BaseHTTPRequestHandler):
             self.send_cors_headers()
             self.end_headers()
             self.wfile.write(b'{"status": "ok"}')
+        elif self.path == "/confirm_action":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length).decode("utf-8")
+            data = json.loads(body)
+            act_id = data.get("action_id")
+            allow = bool(data.get("allow", False))
+            voice_override = data.get("voice")
+
+            if act_id in PENDING_CRITICAL_ACTIONS:
+                pending = PENDING_CRITICAL_ACTIONS.pop(act_id)
+                if allow:
+                    act = execute_action(pending["action_name"], pending["params"])
+                    reply = f"Permission granted, sir. Critical operation executed: {act.get('message', 'Completed.')}"
+                    speak(reply, voice_name=voice_override)
+                    res_data = {
+                        "status": "executed",
+                        "reply": reply,
+                        "action": act,
+                        "refined_prompt": f"Execute approved critical directive: '{pending['brief_desc']}'.",
+                        "plan": "1. Administrator confirmed permission. 2. Critical operation executed with root authority."
+                    }
+                else:
+                    reply = "Critical operation canceled, sir. No changes were made to your operating system."
+                    speak(reply, voice_name=voice_override)
+                    res_data = {
+                        "status": "canceled",
+                        "reply": reply,
+                        "action": {"status": "canceled", "message": "Operation denied by user."},
+                        "refined_prompt": "Purge critical operation.",
+                        "plan": "1. Operation denied. 2. No changes made."
+                    }
+            else:
+                reply = "There is no active critical action pending permission, sir."
+                res_data = {"status": "not_found", "reply": reply}
+
+            import uuid
+            HUD_EVENTS.append({
+                "id": str(uuid.uuid4()),
+                "user_text": f"Authorization: {'ALLOW' if allow else 'DENY'}",
+                "response": res_data,
+                "source": data.get("source", "external")
+            })
+            if len(HUD_EVENTS) > 30:
+                del HUD_EVENTS[:15]
+
+            body_resp = json.dumps(res_data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body_resp)))
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(body_resp)
         elif self.path == "/chat":
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length).decode("utf-8")
@@ -1635,8 +1891,22 @@ class JarvisHandler(BaseHTTPRequestHandler):
                 "plan": plan,
                 "reply": reply,
                 "action": action_executed,
-                "voice": voice_override or get_active_voice()
+                "voice": voice_override or get_active_voice(),
+                "requires_permission": res.get("requires_permission", False),
+                "action_id": res.get("action_id"),
+                "warning": res.get("warning"),
+                "source": data.get("source", "external")
             }
+
+            import uuid
+            HUD_EVENTS.append({
+                "id": str(uuid.uuid4()),
+                "user_text": prompt,
+                "response": response_data,
+                "source": data.get("source", "external")
+            })
+            if len(HUD_EVENTS) > 30:
+                del HUD_EVENTS[:15]
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

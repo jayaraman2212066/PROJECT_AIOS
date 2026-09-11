@@ -252,6 +252,53 @@
             margin-top: 5px;
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
+        .permission-card {
+            background: rgba(69, 10, 10, 0.9);
+            border: 2px solid #ef4444;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+        .permission-badge {
+            display: inline-block;
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            letter-spacing: 0.8px;
+        }
+        .btn-allow {
+            background: #10b981;
+            color: #ffffff;
+            border: 1px solid #34d399;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-right: 8px;
+            transition: all 0.2s;
+        }
+        .btn-allow:hover {
+            background: #059669;
+        }
+        .btn-deny {
+            background: #dc2626;
+            color: #ffffff;
+            border: 1px solid #f87171;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-deny:hover {
+            background: #b91c1c;
+        }
 
         .input-row {
             display: flex;
@@ -613,7 +660,17 @@
                 const reply = data.reply || "Directive executed, sir.";
 
                 let responseHtml = "";
-                if (data.refined_prompt) {
+                if (data.requires_permission) {
+                    responseHtml += `<div class="permission-card">
+                        <div class="permission-badge">⚠️ CRITICAL ACTION PERMISSION REQUIRED</div>
+                        <div style="color:#f8fafc; font-weight:700; margin-bottom:6px; font-size:13px;">${escapeHtml(data.warning || "Critical action detected.")}</div>
+                        <div style="color:#cbd5e1; font-size:11px; margin-bottom:10px; line-height:1.4;">This operation will modify or destroy critical operating system components. Administrator authorization is required to proceed.</div>
+                        <div style="margin-top:6px;">
+                            <button class="btn-allow" onclick="confirmAction('${data.action_id}', true)">✅ ALLOW OPERATION</button>
+                            <button class="btn-deny" onclick="confirmAction('${data.action_id}', false)">❌ DENY / CANCEL</button>
+                        </div>
+                    </div>`;
+                } else if (data.refined_prompt) {
                     responseHtml += `<div class="thought-card">
                         <div class="thought-badge">🎯 ANTIGRAVITY REFINED DIRECTIVE</div>
                         <div style="color:#f8fafc; font-weight:700; margin-bottom:5px;">${escapeHtml(data.refined_prompt)}</div>`;
@@ -643,6 +700,34 @@
                 statusText.innerText = "OFFLINE";
                 statusBadge.style.color = "#ef4444";
                 statusBadge.style.borderColor = "#ef4444";
+            }
+        }
+
+        async function confirmAction(actionId, allow) {
+            const activeVoice = document.getElementById("voiceSelect").value;
+            const statusText = document.getElementById("statusText");
+            statusText.innerText = "CONFIRMING...";
+            try {
+                const response = await fetch(`${API_BASE}/confirm_action`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action_id: actionId,
+                        allow: allow,
+                        voice: activeVoice
+                    })
+                });
+                const res = await response.json();
+                const reply = res.reply || (allow ? "Permission granted. Critical action executed." : "Operation canceled.");
+                let outcomeHtml = `<div style="font-weight:bold; color:${allow ? '#10b981':'#ef4444'}; margin-bottom:4px;">${allow ? '✅ ADMINISTRATOR PERMISSION GRANTED' : '❌ OPERATION CANCELED BY USER'}</div>`;
+                outcomeHtml += `<div>${escapeHtml(reply)}</div>`;
+                appendMessage("j0k", outcomeHtml, true);
+                playRealisticSpeech(reply, activeVoice);
+                statusText.innerText = "J0K ONLINE";
+            } catch(err) {
+                console.error("Confirmation error:", err);
+                appendMessage("j0k", "Error communicating confirmation with J0K daemon.");
+                statusText.innerText = "ERROR";
             }
         }
 

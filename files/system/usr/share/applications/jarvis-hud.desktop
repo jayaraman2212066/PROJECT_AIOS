@@ -1,11 +1,10 @@
-﻿[Desktop Entry]
-Name=J.A.R.V.I.S. Assistant
+[Desktop Entry]
+Name=J0K AI ASSISTANT
 GenericName=AI Operating System Assistant
-Comment=Ambient voice and chat assistant for PROJECT_AI_OS
-Exec=/usr/libexec/jarvis/jarvis_hud.py
-Icon=system-help
+Comment=Ambient voice, star showcase, and desktop AI assistant
+Exec=/usr/local/bin/jarvis_hud.py
+Icon=starred
 Terminal=false
 Type=Application
 Categories=Utility;System;
-StartupNotify=true
-Keywords=ai;jarvis;assistant;voice;chat;
+Keywords=ai;j0k;assistant;voice;chat;showcase;

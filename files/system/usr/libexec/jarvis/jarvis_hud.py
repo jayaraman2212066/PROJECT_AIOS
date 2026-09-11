@@ -18,13 +18,13 @@ import urllib.request
 import threading
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QTextEdit, QScrollArea, QFrame,
+    QLabel, QLineEdit, QPushButton, QTextEdit, QTextBrowser, QScrollArea, QFrame,
     QGridLayout, QGraphicsDropShadowEffect, QSizePolicy, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject, QPoint, QRectF, QPointF
 from PySide6.QtGui import (
     QFont, QColor, QPalette, QIcon, QPainter, QPainterPath,
-    QBrush, QPen, QLinearGradient, QRadialGradient, QCursor
+    QBrush, QPen, QLinearGradient, QRadialGradient, QCursor, QDesktopServices
 )
 
 API_ENDPOINT = os.environ.get("J0K_API", "http://127.0.0.1:9090")
@@ -32,6 +32,7 @@ API_ENDPOINT = os.environ.get("J0K_API", "http://127.0.0.1:9090")
 class WorkerSignals(QObject):
     response_received = Signal(str, object) # user_text, j0k_reply_or_dict
     status_updated = Signal(bool, str)
+    external_event = Signal(str, object)
 
 def make_star_path(cx, cy, r_outer, r_inner, points=5):
     """Generates a 5-pointed star QPainterPath."""
@@ -200,6 +201,7 @@ class J0KShowcaseWindow(QWidget):
         self.signals = WorkerSignals()
         self.signals.response_received.connect(self.on_response_received)
         self.signals.status_updated.connect(self.on_status_updated)
+        self.signals.external_event.connect(self.on_external_event)
 
         self.is_listening = False
         self.history = []
@@ -212,6 +214,12 @@ class J0KShowcaseWindow(QWidget):
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.check_daemon_status)
         self.status_timer.start(4000)
+
+        # Ambient HUD event synchronization timer every 500ms
+        self.last_hud_event_id = ""
+        self.hud_poll_timer = QTimer(self)
+        self.hud_poll_timer.timeout.connect(self.poll_hud_events)
+        self.hud_poll_timer.start(500)
 
     def init_ui(self):
         outer_layout = QVBoxLayout(self)
@@ -426,9 +434,12 @@ class J0KShowcaseWindow(QWidget):
         container_layout.addWidget(voice_bar)
 
         # 2. Conversation Log Area
-        self.chat_display = QTextEdit()
+        self.chat_display = QTextBrowser()
         self.chat_display.setObjectName("chatArea")
         self.chat_display.setReadOnly(True)
+        self.chat_display.setOpenExternalLinks(False)
+        self.chat_display.setOpenLinks(False)
+        self.chat_display.anchorClicked.connect(self.on_anchor_clicked)
         container_layout.addWidget(self.chat_display, stretch=1)
 
         # Welcome message
@@ -541,9 +552,21 @@ class J0KShowcaseWindow(QWidget):
         """
         self.chat_display.append(html)
 
-    def append_j0k_message(self, reply, refined_prompt="", plan="", action_msg=""):
+    def append_j0k_message(self, reply, refined_prompt="", plan="", action_msg="", requires_permission=False, action_id="", warning=""):
         thought_html = ""
-        if refined_prompt:
+        if requires_permission:
+            thought_html = f"""
+            <div style='background-color: rgba(69, 10, 10, 0.95); border: 2px solid #ef4444; border-radius: 8px; padding: 12px; margin-bottom: 10px;'>
+                <div style='color: #ef4444; font-weight: 800; font-size: 11px; letter-spacing: 1px;'>⚠️ CRITICAL ACTION PERMISSION REQUIRED</div>
+                <div style='color: #f8fafc; font-size: 12px; margin-top: 6px; font-weight: bold;'>{html.escape(warning or "High-risk system modification detected.")}</div>
+                <div style='color: #cbd5e1; font-size: 11px; margin-top: 6px; line-height: 1.4;'>This operation will delete critical directories or terminate core system tasks. Administrator authorization is required to proceed.</div>
+                <div style='margin-top: 10px;'>
+                    <a href='j0k-allow:{action_id}' style='background-color: #10b981; color: #ffffff; text-decoration: none; font-weight: bold; padding: 6px 14px; border-radius: 6px; font-size: 11px; margin-right: 12px; display: inline-block;'>✅ ALLOW OPERATION</a>
+                    <a href='j0k-deny:{action_id}' style='background-color: #ef4444; color: #ffffff; text-decoration: none; font-weight: bold; padding: 6px 14px; border-radius: 6px; font-size: 11px; display: inline-block;'>❌ DENY / CANCEL</a>
+                </div>
+            </div>
+            """
+        elif refined_prompt:
             thought_html = f"""
             <div style='background-color: rgba(15, 23, 42, 0.9); border-left: 3px solid #00e5ff; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;'>
                 <span style='background-color: rgba(0, 229, 255, 0.15); color: #00e5ff; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;'>🎯 ANTIGRAVITY REFINED DIRECTIVE</span><br>
@@ -566,6 +589,36 @@ class J0KShowcaseWindow(QWidget):
         """
         self.chat_display.append(html_text)
 
+    def on_anchor_clicked(self, url):
+        link_str = url.toString() if hasattr(url, "toString") else str(url)
+        if link_str.startswith("j0k-allow:"):
+            act_id = link_str.replace("j0k-allow:", "")
+            self.send_confirmation(act_id, True)
+        elif link_str.startswith("j0k-deny:"):
+            act_id = link_str.replace("j0k-deny:", "")
+            self.send_confirmation(act_id, False)
+        else:
+            QDesktopServices.openUrl(url)
+
+    def send_confirmation(self, act_id, allow):
+        self.status_label.setText("⚡ PROCESSING...")
+        self.status_label.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 11px;")
+        def _worker():
+            payload = json.dumps({"action_id": act_id, "allow": allow, "source": "hud_local"}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{API_ENDPOINT}/confirm_action",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=25) as resp:
+                    res = json.loads(resp.read().decode("utf-8"))
+                    self.signals.response_received.emit("[Permission Response]", res)
+            except Exception as e:
+                self.signals.response_received.emit("[Permission Response]", {"reply": f"Confirmation error: {e}"})
+
+        threading.Thread(target=_worker, daemon=True).start()
+
     def on_send_clicked(self):
         text = self.input_field.text().strip()
         if text:
@@ -578,7 +631,7 @@ class J0KShowcaseWindow(QWidget):
         self.status_label.setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 11px;")
 
         def _worker():
-            payload = json.dumps({"prompt": text, "history": self.history[-6:]}).encode("utf-8")
+            payload = json.dumps({"prompt": text, "history": self.history[-6:], "source": "hud_local"}).encode("utf-8")
             req = urllib.request.Request(
                 f"{API_ENDPOINT}/chat",
                 data=payload,
@@ -596,6 +649,35 @@ class J0KShowcaseWindow(QWidget):
 
         threading.Thread(target=_worker, daemon=True).start()
 
+    def on_external_event(self, user_text, res):
+        """Called when an external command or confirmation occurs (voice, web portal, agent)."""
+        if not self.isVisible():
+            self.pop_up_showcase()
+        if user_text and user_text not in ["[Permission Response]"]:
+            self.append_user_message(user_text)
+        self.on_response_received(user_text, res)
+
+    def poll_hud_events(self):
+        """Polls central J0K daemon for system-wide ambient events and critical actions."""
+        def _poll():
+            try:
+                url = f"{API_ENDPOINT}/hud_poll?last_id={self.last_hud_event_id}"
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("has_new") and "event" in data:
+                        ev = data["event"]
+                        ev_id = ev.get("id", "")
+                        self.last_hud_event_id = ev_id
+                        resp_data = ev.get("response", {})
+                        if resp_data.get("source") == "hud_local":
+                            return
+                        user_text = ev.get("user_text", "")
+                        self.signals.external_event.emit(user_text, resp_data)
+            except Exception:
+                pass
+        threading.Thread(target=_poll, daemon=True).start()
+
     def on_response_received(self, user_text, res):
         if isinstance(res, dict):
             reply = res.get("reply", "")
@@ -603,7 +685,18 @@ class J0KShowcaseWindow(QWidget):
             plan = res.get("plan", "")
             act = res.get("action", {})
             act_msg = act.get("message", "") if isinstance(act, dict) else ""
-            self.append_j0k_message(reply, refined_prompt=refined, plan=plan, action_msg=act_msg)
+            requires_perm = res.get("requires_permission", False)
+            act_id = res.get("action_id", "")
+            warning = res.get("warning", "")
+            self.append_j0k_message(
+                reply,
+                refined_prompt=refined,
+                plan=plan,
+                action_msg=act_msg,
+                requires_permission=requires_perm,
+                action_id=act_id,
+                warning=warning
+            )
         else:
             self.append_j0k_message(str(res))
         self.check_daemon_status()
