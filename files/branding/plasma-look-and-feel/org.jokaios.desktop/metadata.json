@@ -2,19 +2,19 @@
     "KPlugin": {
         "Authors": [
             {
-                "Email": "admin@my-ai-os.local",
-                "Name": "My AI OS Team"
+                "Email": "contact@jaienterprises.com",
+                "Name": "J AI ENTERPRISES"
             }
         ],
         "Category": "Plasma Look and Feel",
-        "Description": "Windows-like desktop experience for My AI OS powered by KDE Plasma",
-        "Id": "org.myaios.desktop",
-        "Name": "My AI OS Look and Feel",
+        "Description": "Windows-like desktop experience for JOK-AI-OS powered by KDE Plasma",
+        "Id": "org.jokaios.desktop",
+        "Name": "JOK AI OS Look and Feel",
         "ServiceTypes": [
             "Plasma/LookAndFeel"
         ],
         "Version": "1.0",
-        "Website": "https://github.com/my-ai-os"
+        "Website": "https://github.com/jayaraman2212066/PROJECT_AIOS"
     },
     "Comment": "PLACEHOLDER PLASMA LOOK-AND-FEEL PACKAGE: Replace later with real KDE Plasma Look-and-Feel theme defining Windows-like taskbar/panel, start menu, and themes."
 }

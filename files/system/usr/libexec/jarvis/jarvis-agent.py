@@ -226,6 +226,87 @@ def speak(text, voice_name=None):
         except Exception as e:
             print(f"[J0K Voice] TTS Playback Error: {e}", file=sys.stderr)
 
+# ──────────────────────────────────────────────────────────────────────
+# SELF-LEARNING MEMORY SYSTEM
+# J0K remembers successful actions, user preferences, and corrections.
+# This memory is injected into the LLM context so J0K improves over time.
+# ──────────────────────────────────────────────────────────────────────
+MEMORY_FILE = "/home/jayaramank/.config/j0k_memory.json"
+MAX_MEMORY_ACTIONS = 100
+MAX_MEMORY_CORRECTIONS = 50
+MAX_MEMORY_PREFERENCES = 20
+
+def load_memory():
+    """Load persistent memory from disk."""
+    try:
+        if os.path.exists(MEMORY_FILE):
+            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {"learned_preferences": [], "successful_actions": [], "corrections": []}
+
+def save_memory(mem):
+    """Persist memory to disk with size limits."""
+    mem["successful_actions"] = mem.get("successful_actions", [])[-MAX_MEMORY_ACTIONS:]
+    mem["corrections"] = mem.get("corrections", [])[-MAX_MEMORY_CORRECTIONS:]
+    mem["learned_preferences"] = mem.get("learned_preferences", [])[-MAX_MEMORY_PREFERENCES:]
+    try:
+        os.makedirs(os.path.dirname(MEMORY_FILE), exist_ok=True)
+        with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(mem, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[J0K Memory] Save error: {e}", file=sys.stderr)
+
+def remember_success(user_said, action_name, params, reply):
+    """Record a successful action for future learning."""
+    mem = load_memory()
+    mem["successful_actions"].append({
+        "user_said": user_said[:200],
+        "action": action_name,
+        "params_summary": str(params)[:300],
+        "time": time.strftime("%Y-%m-%d %H:%M")
+    })
+    save_memory(mem)
+
+def remember_correction(user_said, context):
+    """Record a user correction for future learning."""
+    mem = load_memory()
+    mem["corrections"].append({
+        "user_said": user_said[:200],
+        "context": context[:200],
+        "time": time.strftime("%Y-%m-%d %H:%M")
+    })
+    save_memory(mem)
+
+def remember_preference(preference):
+    """Record a learned user preference."""
+    mem = load_memory()
+    # Avoid duplicates
+    existing = [p["pattern"] for p in mem["learned_preferences"]]
+    if preference not in existing:
+        mem["learned_preferences"].append({
+            "pattern": preference[:200],
+            "learned_at": time.strftime("%Y-%m-%d")
+        })
+        save_memory(mem)
+
+def get_memory_context():
+    """Build a context string from memory to inject into LLM prompts."""
+    mem = load_memory()
+    parts = []
+    if mem.get("learned_preferences"):
+        prefs = "; ".join(p["pattern"] for p in mem["learned_preferences"][-10:])
+        parts.append(f"User preferences: {prefs}")
+    if mem.get("corrections"):
+        corrs = "; ".join(c["user_said"] for c in mem["corrections"][-5:])
+        parts.append(f"Past corrections: {corrs}")
+    if mem.get("successful_actions"):
+        recent = mem["successful_actions"][-5:]
+        examples = "; ".join(f"'{a['user_said']}' -> {a['action']}" for a in recent)
+        parts.append(f"Recent successful actions: {examples}")
+    return "\n".join(parts) if parts else ""
+
 PENDING_CRITICAL_ACTIONS = {}
 
 CRITICAL_SYSTEM_DIRS = {
@@ -510,7 +591,7 @@ Content-Type: text/plain; charset=utf-8
                     <button id="addBtn">Add Directive</button>
                 </div>
                 <ul id="taskList">
-                    <li class="completed">Deploy Fedora Kinoite 44 Core ✓</li>
+                    <li class="completed">Deploy JOK-AI-OS 1.0 Core Engine ✓</li>
                     <li class="completed">Initialize J.A.R.V.I.S. Ambient Assistant ✓</li>
                     <li>Construct Advanced Autonomous AI Capabilities</li>
                 </ul>
@@ -1001,6 +1082,42 @@ All systems are operating at peak efficiency.
             run_as_user(["notify-send", "📥 Download Complete", f"Saved {fname} to ~/Downloads"])
             result["data"] = {"path": dl_path}
 
+        elif action_name == "set_voice":
+            v_name = params.get("voice", "").strip()
+            matched = None
+            for gv in GEMINI_VOICES:
+                if gv.lower() == v_name.lower():
+                    matched = gv
+                    break
+            if matched:
+                set_active_voice(matched)
+                result["message"] = f"Voice persona switched to {matched}."
+            else:
+                result["status"] = "error"
+                result["message"] = f"Unknown voice persona '{v_name}'. Available: {', '.join(GEMINI_VOICES.keys())}"
+
+        elif action_name == "adapt_and_run_app":
+            fpath = params.get("file_path", "").strip()
+            if not fpath:
+                result["status"] = "error"
+                result["message"] = "No file path specified for universal app adapter."
+            else:
+                if not fpath.startswith("/"):
+                    for c_dir in ["/home/jayaramank/Downloads", "/home/jayaramank/Desktop", "/home/jayaramank"]:
+                        t_path = os.path.join(c_dir, fpath)
+                        if os.path.exists(t_path):
+                            fpath = t_path
+                            break
+                if not os.path.exists(fpath):
+                    result["status"] = "error"
+                    result["message"] = f"Application file not found: {fpath}"
+                else:
+                    adapter_cmd = ["/usr/bin/python3", "/usr/libexec/jarvis/jok-app-adapter.py", fpath]
+                    subprocess.Popen(adapter_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    run_as_user(["notify-send", "⚡ JOK Universal App Adapter", f"Adapting & Launching {os.path.basename(fpath)}..."])
+                    result["message"] = f"Adapting and launching '{os.path.basename(fpath)}' via JOK-AI-OS Universal Compatibility Engine."
+                    result["data"] = {"path": fpath, "adapted": True}
+
     except Exception as e:
         result["status"] = "error"
         result["message"] = str(e)
@@ -1009,93 +1126,157 @@ All systems are operating at peak efficiency.
 
 def query_antigravity_llm(user_message, history=None):
     """
-    Antigravity Prompt Synthesizer & Reasoner (Tier 2):
-    Passes raw input to local Qwen LLM to expand into the best prompt,
-    formulate the execution plan, choose the tool action, and draft the voice response.
+    Autonomous LLM Reasoning Engine:
+    The local Qwen LLM receives user intent, historical conversation context,
+    and persistent self-learning memory. It thinks autonomously, plans multi-step
+    operations, selects tool actions, and composes executive responses.
     """
-    sys_prompt = """You are J0K AI ASSISTANT, powered by an Antigravity prompt-refinement engine.
-Your mission:
-1. Transform the user's raw input (chat or voice) into the BEST, high-fidelity, optimal prompt that captures their true goal.
-2. Formulate a 1-3 step execution plan.
-3. Select an action if a system operation is needed, or set action to null.
-4. Compose a polite, concise executive response (1-2 sentences) to speak aloud.
+    raw_lower = user_message.lower().strip()
 
-You MUST respond ONLY with valid JSON in this exact structure:
-{
-  "refined_prompt": "<expanded, professional and precise prompt>",
-  "plan": "<step 1, step 2...>",
-  "action": {"action": "<action_name>", "parameters": {<key_values>}} or null,
-  "reply": "<polite, concise executive answer to speak to user>"
-}
+    # 1. Detect user self-learning cues & teaching
+    for cue in ["remember that", "remember this:", "remember:", "my preference is", "from now on"]:
+        if cue in raw_lower:
+            pref_text = user_message[raw_lower.find(cue) + len(cue):].strip().lstrip(":, ")
+            if pref_text:
+                remember_preference(pref_text)
+                break
 
-Available actions:
-- create_project: {"name": "<name>", "type": "<python|scraper|web|api|game>", "description": "<desc>"}
-- send_email: {"recipient": "<email>", "subject": "<subject>", "body": "<body>"}
-- window_action: {"action": "<close|switch|maximize|minimize|restore|overview|lock>"}
-- manage_file_folder: {"operation": "<create_folder|copy|move|delete|zip|unzip>", "source": "<path>", "destination": "<path>"}
-- create_document: {"title": "<title>", "format": "<markdown|csv|text>"}
-- manage_clipboard: {"operation": "<copy|read>", "text": "<text>"}
-- get_weather: {"city": "<city>"}
-- manage_process: {"operation": "<list_top|kill>", "process_name": "<name>"}
-- run_command: {"command": "<command>"}
-- open_app: {"app": "<browser|files|calculator|editor|settings|terminal|systemmonitor>"}
-- open_url: {"url": "<url>"}
-- system_status: {}
-- set_volume: {"level": "<up|down|mute|unmute>"}
-- take_screenshot: {}
-- take_notes: {"note": "<note>"}
-"""
+    # Check for user corrections
+    for corr_cue in ["no that is wrong", "no that was wrong", "that is incorrect", "you made a mistake"]:
+        if corr_cue in raw_lower:
+            remember_correction(user_message, "User corrective feedback")
+            break
+
+    # 2. Inject persistent memory context
+    mem_context = get_memory_context()
+    memory_section = f" Learned Context: {mem_context}" if mem_context else ""
+
+    sys_prompt = f"""You are J0K AI ASSISTANT on JOK-AI-OS Linux. Respond ONLY with valid JSON.{memory_section}
+Actions:
+open_app(app:browser|files|calculator|editor|settings|terminal|systemmonitor)
+system_status()
+set_volume(level:up|down|mute|unmute)
+window_action(action:close|switch|maximize|minimize|restore|overview|lock)
+take_screenshot()
+take_notes(note)
+get_weather(city)
+manage_clipboard(operation:copy|read,text)
+run_command(command)
+create_document(title,format:markdown|csv)
+send_email(recipient,subject,body)
+create_project(name,type:python|scraper|web|api|game,description)
+search_files(name,directory)
+manage_file_folder(operation:create_folder|copy|move|delete|zip|unzip,source,destination)
+create_file(path,content)
+read_file(path)
+open_url(url)
+manage_process(operation:list_top|kill,process_name)
+download_web(url,filename)
+set_voice(voice:Charon|Puck|Aoede|Kore|Fenrir)
+adapt_and_run_app(file_path:apk|exe|msi|ipa|appimage|deb)
+
+Format:
+{{"refined_prompt":"...","plan":"...","actions":[{{"action":"...","parameters":{{...}}}}],"reply":"..."}}
+If conversational or greeting, "actions":[]."""
+
     messages = [{"role": "system", "content": sys_prompt}]
     if history:
         messages.extend(history[-4:])
-    messages.append({"role": "user", "content": f"User Request: {user_message}"})
+    messages.append({"role": "user", "content": user_message})
 
     payload = json.dumps({
         "model": MODEL_NAME,
         "messages": messages,
-        "temperature": 0.3,
-        "max_tokens": 400
+        "temperature": 0.2,
+        "max_tokens": 120
     }).encode("utf-8")
 
     req = urllib.request.Request(LLM_API_URL, data=payload, headers={"Content-Type": "application/json"})
+
+    parsed = None
     try:
-        with urllib.request.urlopen(req, timeout=16) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = data["choices"][0]["message"]["content"]
             m = re.search(r'\{.*\}', content, re.DOTALL)
             if m:
                 parsed = json.loads(m.group(0))
-                act_data = parsed.get("action")
-                if act_data and isinstance(act_data, dict) and "action" in act_data:
-                    return check_and_execute_or_defer(
-                        act_data["action"],
-                        act_data.get("parameters", {}),
-                        parsed.get("refined_prompt", f"Process user directive: '{user_message}'"),
-                        parsed.get("plan", "1. Execute planned steps autonomously."),
-                        parsed.get("reply", "I have processed your directive, sir.")
-                    )
-                return {
-                    "refined_prompt": parsed.get("refined_prompt", f"Process user directive: '{user_message}'"),
-                    "plan": parsed.get("plan", "1. Execute planned steps autonomously."),
-                    "action": None,
-                    "reply": parsed.get("reply", "I have processed your directive, sir.")
-                }
     except Exception as e:
-        print(f"[Antigravity LLM] Request error: {e}", file=sys.stderr)
+        print(f"[J0K LLM] Primary inference error: {e}", file=sys.stderr)
+
+    if not parsed:
+        return {
+            "requires_permission": False,
+            "refined_prompt": f"Analyze directive: '{user_message}'",
+            "plan": "1. Local LLM processing standby. 2. Verify system nominal status.",
+            "action": None,
+            "reply": "I have received your directive, sir. All core operating systems remain nominal."
+        }
+
+    refined_prompt = parsed.get("refined_prompt", f"Process user directive: '{user_message}'")
+    plan = parsed.get("plan", "1. Execute planned steps autonomously.")
+    reply = parsed.get("reply", "Directive processed, sir.")
+
+    actions_list = parsed.get("actions", [])
+    if not actions_list and parsed.get("action"):
+        legacy_act = parsed.get("action")
+        if isinstance(legacy_act, dict) and "action" in legacy_act:
+            actions_list = [legacy_act]
+
+    if not actions_list:
+        return {
+            "requires_permission": False,
+            "refined_prompt": refined_prompt,
+            "plan": plan,
+            "action": None,
+            "reply": reply
+        }
+
+    executed_results = []
+    for act_item in actions_list:
+        if not isinstance(act_item, dict):
+            continue
+        act_name = act_item.get("action")
+        act_params = act_item.get("parameters", {})
+        if not act_name:
+            continue
+
+        is_crit, reason, brief_desc = is_critical_operation(act_name, act_params)
+        if is_crit:
+            return check_and_execute_or_defer(
+                act_name, act_params, refined_prompt, plan, reply
+            )
+
+        res = execute_action(act_name, act_params)
+        executed_results.append(res)
+
+        if res.get("status") == "success":
+            remember_success(user_message, act_name, act_params, reply)
+
+    last_action = executed_results[-1] if executed_results else None
+    if len(executed_results) > 1:
+        composite_action = {
+            "status": "success",
+            "message": "; ".join([r.get("message", "") for r in executed_results if r.get("message")]),
+            "steps": executed_results
+        }
+    else:
+        composite_action = last_action
 
     return {
-        "refined_prompt": f"Analyze and fulfill user directive: '{user_message}'",
-        "plan": "1. Parse user goal. 2. Verify system environment. 3. Formulate response.",
-        "action": None,
-        "reply": "I have processed your directive, sir. All core subsystems and services are operating at peak efficiency."
+        "requires_permission": False,
+        "refined_prompt": refined_prompt,
+        "plan": plan,
+        "action": composite_action,
+        "reply": reply
     }
 
 def refine_prompt_and_plan(text, history=None):
     """
-    Antigravity Engine:
-    Converts raw user voice or chat input into the BEST, high-fidelity prompt,
-    generates a step-by-step execution plan, executes the appropriate action,
-    and formulates the concise executive spoken response.
+    Autonomous J0K Decision Pipeline:
+    1. Handles pending critical action authorization (ALLOW / DENY).
+    2. Sends all directives directly to the local Qwen LLM for autonomous thinking,
+       planning, self-learning, and tool action execution. No hardcoded if-else trees.
     """
     t = text.lower().strip()
 
@@ -1129,520 +1310,7 @@ def refine_prompt_and_plan(text, history=None):
                 "reply": "Critical operation canceled, sir. No changes were made to your operating system."
             }
 
-    # 1. GREETINGS & IDENTITY
-    if any(k in t for k in ["who are you", "what is your name", "identify yourself"]):
-        return {
-            "refined_prompt": "Identify agent capabilities and confirm operational readiness.",
-            "plan": "1. Report agent identity J0K AI ASSISTANT. 2. Verify all background services.",
-            "action": None,
-            "reply": "I am J0K AI ASSISTANT, your ambient operating system assistant. I am here to assist you with all desktop and system operations, sir."
-        }
-    if t in ["hello", "hi", "hey", "j0k", "jarvis"] or any(t.startswith(k) for k in ["hello ", "hi ", "hey ", "good morning", "good evening"]):
-        return {
-            "refined_prompt": "Acknowledge user presence and stand by for directives.",
-            "plan": "1. Verify system readiness. 2. Return executive greeting.",
-            "action": None,
-            "reply": "Good day, sir. All core operating systems are nominal. I am J0K AI ASSISTANT, ready for your command."
-        }
-    if any(k in t for k in ["help", "what can you do", "commands"]):
-        return {
-            "refined_prompt": "Enumerate J0K AI ASSISTANT universal operational capabilities.",
-            "plan": "1. List autonomous features: code projects, emails, documents, system controls, and diagnostics.",
-            "action": None,
-            "reply": "Sir, I am J0K AI ASSISTANT. I can perform any operation: create complete software projects, send and draft emails, search the web, manage files, open apps, take screenshots, run system diagnostics, and execute commands."
-        }
-    if any(k in t for k in ["what time", "current time", "date today", "what day"]):
-        now_str = time.strftime("%I:%M %p on %A, %B %d, %Y")
-        return {
-            "refined_prompt": "Query system clock and format high-precision local date and time.",
-            "plan": f"1. Read system clock -> {now_str}.",
-            "action": None,
-            "reply": f"It is currently {now_str}, sir."
-        }
-
-    # 2. GEMINI VOICE PERSONA SWITCHING
-    if any(k in t for k in ["voice options", "list voices", "what voices", "available voices", "show voices"]):
-        v_list = ", ".join(GEMINI_VOICES.keys())
-        curr = get_active_voice()
-        return {
-            "refined_prompt": "List all configured realistic Gemini voice synthesis personas.",
-            "plan": "1. Enumerate available personas from config. 2. Highlight active selection.",
-            "action": None,
-            "reply": f"Available Gemini-style realistic voices are: {v_list}. The current active voice is {curr}."
-        }
-
-    voice_match = re.search(r'(?:change|switch|set|use)\s+(?:to\s+)?([a-zA-Z]+)\s+voice', t)
-    if voice_match:
-        target_v = voice_match.group(1).capitalize()
-        if target_v in GEMINI_VOICES:
-            set_active_voice(target_v)
-            desc = GEMINI_VOICES[target_v]["style"]
-            return {
-                "refined_prompt": f"Reconfigure neural speech engine to persona '{target_v}'.",
-                "plan": f"1. Update voice configuration. 2. Switch speech output to {target_v}.",
-                "action": {"status": "success", "message": f"Active voice persona set to {target_v}"},
-                "reply": f"Voice persona switched to {target_v}. {desc}, sir."
-            }
-
-    for v_name in GEMINI_VOICES:
-        if f"voice to {v_name.lower()}" in t or f"switch to {v_name.lower()}" in t or f"use {v_name.lower()} voice" in t:
-            set_active_voice(v_name)
-            desc = GEMINI_VOICES[v_name]["style"]
-            return {
-                "refined_prompt": f"Switch neural voice persona to '{v_name}'.",
-                "plan": f"1. Save persona '{v_name}' to ~/.config/j0k_voice.json.",
-                "action": {"status": "success", "message": f"Active voice persona set to {v_name}"},
-                "reply": f"Voice persona set to {v_name}. {desc}, sir."
-            }
-
-    # 3. DIRECT SHELL COMMAND EXECUTION
-    cmd_match = re.search(r'(?:run\s+command|execute\s+command)[:\s]+(.*)', text, re.IGNORECASE)
-    if cmd_match:
-        sh_cmd = cmd_match.group(1).strip()
-        return check_and_execute_or_defer(
-            "run_command", {"command": sh_cmd},
-            f"Execute user shell directive '{sh_cmd}' with administrator authority.",
-            f"1. Validate command syntax. 2. Verify critical safeguards. 3. Execute with root authority.",
-            f"Command executed, sir."
-        )
-
-    # 4. NOTES & KNOWLEDGE BASE
-    note_match = re.search(r'(?:take\s+a?\s*note|write\s+a?\s*note|remember\s+that)[:\s]+(.*)', text, re.IGNORECASE)
-    if note_match:
-        note_text = note_match.group(1).strip()
-        act = execute_action("take_notes", {"note": note_text})
-        return {
-            "refined_prompt": f"Append timestamped entry to persistent user notebook: '{note_text}'",
-            "plan": "1. Format entry with ISO timestamp. 2. Append to ~/Documents/Notes.md. 3. Post desktop notification.",
-            "action": act,
-            "reply": "Note recorded to your personal notebook, sir."
-        }
-
-    # 5. EMAIL COMPOSITION & DISPATCH
-    email_match = re.search(r'(?:mail|email|send\s+(?:an?\s+)?(?:email|mail))\s+(?:it\s+)?(?:to\s+)?([^\s,]+)(.*)', t)
-    if email_match:
-        recipient = email_match.group(1).strip()
-        if recipient.lower() in ["to", "an", "a"]:
-            recipient = "alex"
-        rest = email_match.group(2).strip()
-        subject = "Project Update & Directives"
-        body = "Greetings, this message was generated and dispatched by J0K AI ASSISTANT inside PROJECT_AI_OS."
-        subj_match = re.search(r'(?:about|subject|with\s+subject)\s+([^,]+?)(?:\s+(?:and\s+say|saying|body|message)\s+(.*))?$', rest)
-        if subj_match:
-            subject = subj_match.group(1).strip()
-            if subj_match.group(2):
-                body = subj_match.group(2).strip()
-        elif rest:
-            body = rest.strip()
-        act = execute_action("send_email", {"recipient": recipient, "subject": subject, "body": body})
-        return {
-            "refined_prompt": f"Draft and dispatch professional correspondence to {recipient} regarding '{subject}'.",
-            "plan": f"1. Parse recipient <{recipient}>. 2. Compose message body. 3. Open email composer with draft.",
-            "action": act,
-            "reply": f"I have prepared the email for {recipient} with subject '{subject}', sir. Opening your email composer now."
-        }
-
-    # 6. AUTONOMOUS PROJECT CREATION
-    is_project = (
-        ("project" in t and any(v in t for v in ["make", "create", "build", "scaffold", "new", "start", "generate"])) or
-        (any(t.startswith(p) for p in ["make ", "create ", "build ", "scaffold "]) and any(k in t for k in ["project", "scraper", "todo", "game", "app"]))
-    )
-    if is_project:
-        proj_type = "python"
-        proj_name = "ai_project"
-        desc = "Autonomous project created by J0K AI ASSISTANT."
-        if "scrape" in t or "scraping" in t:
-            proj_type = "scraper"
-            proj_name = "news_scraper"
-            desc = "Python Web Scraper created autonomously by J0K AI ASSISTANT."
-        elif "todo" in t:
-            proj_type = "web"
-            proj_name = "todo_app"
-            desc = "Cyberpunk Glassmorphic Todo App created by J0K AI ASSISTANT."
-        elif "game" in t:
-            proj_type = "game"
-            proj_name = "cyber_game"
-            desc = "Cyber-Decryption Number Game created by J0K AI ASSISTANT."
-        elif "web" in t or "html" in t or "frontend" in t:
-            proj_type = "web"
-            proj_name = "web_portal"
-            desc = "Modern Web Application created by J0K AI ASSISTANT."
-        elif "api" in t or "backend" in t or "fastapi" in t:
-            proj_type = "api"
-            proj_name = "rest_api_service"
-            desc = "REST API Service created by J0K AI ASSISTANT."
-        else:
-            proj_type = "python"
-            proj_name = "showcase_project"
-            desc = "Autonomous Showcase Project created by J0K AI ASSISTANT."
-
-        name_match = re.search(r'(?:called|named)\s+([a-zA-Z0-9_\-]+)', t)
-        if name_match:
-            proj_name = name_match.group(1).strip()
-
-        act = execute_action("create_project", {"name": proj_name, "type": proj_type, "description": desc})
-        return {
-            "refined_prompt": f"Scaffold and author complete production-ready {proj_type} project '{proj_name}' with modular source code and documentation.",
-            "plan": f"1. Create ~/Projects/{proj_name}. 2. Generate source code files and dependencies. 3. Author README.md. 4. Open in Dolphin file manager.",
-            "action": act,
-            "reply": f"I have created your {proj_type} project '{proj_name}' in your Projects folder, complete with source code and documentation, sir. Opening it for you now."
-        }
-
-    # 7. WINDOWS & WORKSPACE CONTROLS
-    if any(k in t for k in ["switch window", "switch app", "next window"]):
-        act = execute_action("window_action", {"action": "switch"})
-        return {
-            "refined_prompt": "Cycle active window focus to next application in Wayland session.",
-            "plan": "1. Invoke KWin window cycle shortcut.",
-            "action": act,
-            "reply": "Switching to next window, sir."
-        }
-    if any(k in t for k in ["close window", "close active window", "close current window", "close app"]):
-        act = execute_action("window_action", {"action": "close"})
-        return {
-            "refined_prompt": "Send close event to current active application window.",
-            "plan": "1. Identify active window ID. 2. Issue window close event.",
-            "action": act,
-            "reply": "Closing current active window, sir."
-        }
-    if any(k in t for k in ["maximize window", "maximize current window"]):
-        act = execute_action("window_action", {"action": "maximize"})
-        return {
-            "refined_prompt": "Maximize active window geometry to fill display bounds.",
-            "plan": "1. Target active window. 2. Toggle maximize state.",
-            "action": act,
-            "reply": "Window maximized, sir."
-        }
-    if any(k in t for k in ["minimize window", "minimize active window"]):
-        act = execute_action("window_action", {"action": "minimize"})
-        return {
-            "refined_prompt": "Minimize active window to task panel.",
-            "plan": "1. Issue minimize command to active window.",
-            "action": act,
-            "reply": "Window minimized, sir."
-        }
-    if any(k in t for k in ["overview", "grid view", "show all windows"]):
-        act = execute_action("window_action", {"action": "overview"})
-        return {
-            "refined_prompt": "Trigger KWin overview effect presenting all workspace windows.",
-            "plan": "1. Invoke KWin overview via D-Bus.",
-            "action": act,
-            "reply": "Presenting desktop overview grid, sir."
-        }
-    if any(k in t for k in ["lock screen", "lock pc", "lock computer"]):
-        act = execute_action("window_action", {"action": "lock"})
-        return {
-            "refined_prompt": "Lock desktop session and engage screen security lock.",
-            "plan": "1. Call loginctl lock-session.",
-            "action": act,
-            "reply": "Locking computer screen for security, sir."
-        }
-
-    # 8. SYSTEM CLIPBOARD
-    clip_copy_match = re.search(r'(?:copy\s+to\s+clipboard|copy)[:\s]+(.*)', text, re.IGNORECASE)
-    if clip_copy_match and not any(k in t for k in ["how to copy", "what to copy"]):
-        clip_content = clip_copy_match.group(1).strip()
-        act = execute_action("manage_clipboard", {"operation": "copy", "text": clip_content})
-        return {
-            "refined_prompt": f"Write text into system Wayland/X11 clipboard buffer: '{clip_content[:40]}...'",
-            "plan": "1. Send text to wl-copy/xclip clipboard pipe.",
-            "action": act,
-            "reply": f"Copied '{clip_content[:40]}' to your clipboard, sir."
-        }
-    if any(k in t for k in ["what is on my clipboard", "read clipboard", "show clipboard"]):
-        act = execute_action("manage_clipboard", {"operation": "read"})
-        clip_val = act.get("data", {}).get("clipboard", "")
-        return {
-            "refined_prompt": "Read and return current clipboard buffer content.",
-            "plan": "1. Execute wl-paste/xclip to extract clipboard text.",
-            "action": act,
-            "reply": f"Your clipboard currently contains: '{clip_val}', sir."
-        }
-
-    # 9. LIVE WEATHER FORECAST
-    weather_match = re.search(r'(?:what(?:\'s|\s+is)?\s+the\s+weather\s+(?:in|for)|weather\s+(?:in|for))[:\s]+([a-zA-Z\s]+)', text, re.IGNORECASE)
-    if weather_match:
-        target_city = weather_match.group(1).strip()
-        act = execute_action("get_weather", {"city": target_city})
-        return {
-            "refined_prompt": f"Query atmospheric meteorological metrics and forecast for {target_city}.",
-            "plan": f"1. Query weather API for {target_city}. 2. Format condition and temperature.",
-            "action": act,
-            "reply": act.get("message", "Weather report retrieved, sir.")
-        }
-    if any(k in t for k in ["weather today", "what is the weather", "current weather"]):
-        act = execute_action("get_weather", {"city": "local"})
-        return {
-            "refined_prompt": "Fetch current local weather forecast and temperature.",
-            "plan": "1. Query local weather telemetry.",
-            "action": act,
-            "reply": act.get("message", "Weather report retrieved, sir.")
-        }
-
-    # 10. DOCUMENTS & SPREADSHEETS
-    sheet_match = re.search(r'(?:create|make|write)\s+(?:a\s+)?(?:spreadsheet|csv|table)\s+(?:for|with|about)?\s*(.*)', text, re.IGNORECASE)
-    if sheet_match:
-        sheet_title = sheet_match.group(1).strip() or "data_table"
-        act = execute_action("create_document", {"title": sheet_title, "format": "csv"})
-        return {
-            "refined_prompt": f"Create structured tabular CSV dataset '{sheet_title}.csv' in ~/Documents.",
-            "plan": f"1. Format CSV structure with column headers. 2. Write to ~/Documents/{sheet_title}.csv. 3. Open in Kate editor.",
-            "action": act,
-            "reply": f"I have created your spreadsheet '{sheet_title}.csv' in your Documents folder and opened it in Kate, sir."
-        }
-    
-    doc_match = re.search(r'(?:create|write|draft)\s+(?:a\s+)?(?:document|report|essay|article)\s+(?:for|about)?\s*(.*)', text, re.IGNORECASE)
-    if doc_match:
-        doc_title = doc_match.group(1).strip() or "executive_report"
-        act = execute_action("create_document", {"title": doc_title, "format": "markdown"})
-        return {
-            "refined_prompt": f"Author structured markdown document '{doc_title}.md' with executive headings.",
-            "plan": f"1. Generate markdown draft. 2. Write to ~/Documents/{doc_title}.md. 3. Open in Kate editor.",
-            "action": act,
-            "reply": f"I have drafted your document '{doc_title}.md' in your Documents folder and opened it for editing, sir."
-        }
-
-    # 11. FILE & FOLDER OPERATIONS
-    folder_match = re.search(r'(?:create|make|new)\s+folder[:\s]+([a-zA-Z0-9_\-\s]+)', text, re.IGNORECASE)
-    if folder_match:
-        f_name = folder_match.group(1).strip().replace(" ", "_")
-        act = execute_action("manage_file_folder", {"operation": "create_folder", "source": f_name})
-        return {
-            "refined_prompt": f"Create new filesystem directory ~/{f_name} and open in file manager.",
-            "plan": f"1. mkdir -p ~/{f_name}. 2. Synchronize permissions. 3. Launch Dolphin at path.",
-            "action": act,
-            "reply": f"Created folder '{f_name}' in your home directory and opened in file manager, sir."
-        }
-    zip_match = re.search(r'(?:zip|compress)\s+folder[:\s]+([a-zA-Z0-9_\-\s]+)', text, re.IGNORECASE)
-    if zip_match:
-        z_target = zip_match.group(1).strip().replace(" ", "_")
-        act = execute_action("manage_file_folder", {"operation": "zip", "source": z_target})
-        return {
-            "refined_prompt": f"Compress folder '{z_target}' into an optimized zip archive.",
-            "plan": f"1. Locate target folder. 2. Create archive {z_target}.zip.",
-            "action": act,
-            "reply": f"Compressed folder '{z_target}' into an archive, sir."
-        }
-    unzip_match = re.search(r'(?:unzip|extract)[:\s]+([a-zA-Z0-9_\-\s\.]+)', text, re.IGNORECASE)
-    if unzip_match:
-        uz_target = unzip_match.group(1).strip()
-        act = execute_action("manage_file_folder", {"operation": "unzip", "source": uz_target})
-        return {
-            "refined_prompt": f"Extract archive package '{uz_target}' to filesystem destination.",
-            "plan": f"1. Unpack archive contents. 2. Verify extracted files.",
-            "action": act,
-            "reply": f"Extracted archive '{uz_target}', sir."
-        }
-    del_match = re.search(r'(?:delete|remove|erase)\s+(?:file\s+|folder\s+|directory\s+)?([a-zA-Z0-9_\-\s\.\/]+)', text, re.IGNORECASE)
-    if del_match and not any(k in t for k in ["window", "note", "app", "service", "task"]):
-        del_target = del_match.group(1).strip()
-        return check_and_execute_or_defer(
-            "manage_file_folder", {"operation": "delete", "source": del_target},
-            f"Remove target '{del_target}' from filesystem.",
-            f"1. Locate target. 2. Verify critical directory safeguards. 3. Remove path {del_target}.",
-            f"Removed '{del_target}', sir."
-        )
-
-    # 12. SERVICE & PROCESS TERMINATION
-    svc_stop_match = re.search(r'(?:stop|end|kill|disable|terminate)\s+(?:service|daemon)[:\s]+([a-zA-Z0-9_\-\.]+)', text, re.IGNORECASE)
-    if not svc_stop_match:
-        svc_stop_match = re.search(r'(?:stop|disable)\s+([a-zA-Z0-9_\-\.]+)\s+service', text, re.IGNORECASE)
-    if svc_stop_match and not any(k in t for k in ["window", "app", "note"]):
-        svc_target = svc_stop_match.group(1).strip()
-        return check_and_execute_or_defer(
-            "run_command", {"command": f"systemctl stop {svc_target}"},
-            f"Shut down system service '{svc_target}'.",
-            f"1. Check service state. 2. Verify critical system dependencies. 3. Stop {svc_target}.",
-            f"Service '{svc_target}' stopped, sir."
-        )
-
-    end_task_match = re.search(r'(?:end\s+task|kill\s+process|terminate\s+process)[:\s]+([a-zA-Z0-9_\-\.]+)', text, re.IGNORECASE)
-    if end_task_match and not any(k in t for k in ["window"]):
-        proc_target = end_task_match.group(1).strip()
-        return check_and_execute_or_defer(
-            "manage_process", {"operation": "kill", "process_name": proc_target},
-            f"Terminate task/process '{proc_target}'.",
-            f"1. Locate process. 2. Check process criticality. 3. Send termination signal.",
-            f"Terminated process '{proc_target}', sir."
-        )
-
-    # 12. PROCESS DIAGNOSTICS
-    if any(k in t for k in ["top processes", "what is using memory", "cpu usage", "task list", "running processes"]):
-        act = execute_action("manage_process", {"operation": "list_top"})
-        return {
-            "refined_prompt": "Audit active process table and list top resource consumers by CPU/RAM.",
-            "plan": "1. Query ps aux sorted by CPU and RSS. 2. Extract top processes.",
-            "action": act,
-            "reply": f"Diagnostic complete, sir. {act.get('message', '')}"
-        }
-
-    # 13. WEB & GOOGLE SEARCHES
-    if t.startswith("search google for ") or t.startswith("google "):
-        query = t.replace("search google for ", "").replace("google ", "").strip()
-        url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
-        act = execute_action("open_url", {"url": url})
-        return {
-            "refined_prompt": f"Execute Google web search for '{query}' and display in browser.",
-            "plan": f"1. Encode query '{query}'. 2. Launch browser with Google search URL.",
-            "action": act,
-            "reply": f"Searching Google for {query}, sir."
-        }
-    if t.startswith("search youtube for ") or t.startswith("youtube "):
-        query = t.replace("search youtube for ", "").replace("youtube ", "").strip()
-        url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
-        act = execute_action("open_url", {"url": url})
-        return {
-            "refined_prompt": f"Query YouTube media repository for '{query}'.",
-            "plan": f"1. Format search URL. 2. Open YouTube search results.",
-            "action": act,
-            "reply": f"Searching YouTube for {query}, sir."
-        }
-    if any(k in t for k in ["open youtube", "launch youtube"]):
-        act = execute_action("open_url", {"url": "https://www.youtube.com"})
-        return {
-            "refined_prompt": "Launch YouTube media streaming portal in web browser.",
-            "plan": "1. Open https://www.youtube.com.",
-            "action": act,
-            "reply": "Opening YouTube, sir."
-        }
-
-    # 14. APPLICATION LAUNCHING
-    if any(k in t for k in ["open browser", "launch browser", "web browser", "open internet", "launch firefox"]):
-        act = execute_action("open_app", {"app": "browser"})
-        return {
-            "refined_prompt": "Launch Firefox web browser in user Wayland session.",
-            "plan": "1. Execute firefox command in user session.",
-            "action": act,
-            "reply": "Launching the web browser for you, sir."
-        }
-    if any(k in t for k in ["open files", "file manager", "show my files", "open dolphin", "my documents", "downloads"]):
-        act = execute_action("open_app", {"app": "files"})
-        return {
-            "refined_prompt": "Open Dolphin graphical file manager at user home directory.",
-            "plan": "1. Execute dolphin /home/jayaramank.",
-            "action": act,
-            "reply": "Opening the file manager, sir."
-        }
-    if any(k in t for k in ["calculator", "open calculator", "calc"]):
-        act = execute_action("open_app", {"app": "calculator"})
-        return {
-            "refined_prompt": "Launch KCalc numerical calculator utility.",
-            "plan": "1. Execute kcalc in user GUI session.",
-            "action": act,
-            "reply": "Opening the calculator, sir."
-        }
-    if any(k in t for k in ["text editor", "open editor", "kate", "notepad"]):
-        act = execute_action("open_app", {"app": "editor"})
-        return {
-            "refined_prompt": "Launch Kate multi-document text editor.",
-            "plan": "1. Execute kate in user GUI session.",
-            "action": act,
-            "reply": "Opening the text editor, sir."
-        }
-    if any(k in t for k in ["task manager", "system monitor", "activity monitor"]):
-        act = execute_action("open_app", {"app": "systemmonitor"})
-        return {
-            "refined_prompt": "Launch Plasma System Monitor dashboard.",
-            "plan": "1. Execute plasma-systemmonitor.",
-            "action": act,
-            "reply": "Launching system monitor, sir."
-        }
-    if any(k in t for k in ["open terminal", "launch terminal", "konsole", "command line"]):
-        act = execute_action("open_app", {"app": "terminal"})
-        return {
-            "refined_prompt": "Launch Konsole terminal emulator for manual command execution.",
-            "plan": "1. Execute konsole in user session.",
-            "action": act,
-            "reply": "Opening terminal for manual command access, sir."
-        }
-    if any(k in t for k in ["open settings", "system settings", "control panel"]):
-        act = execute_action("open_app", {"app": "settings"})
-        return {
-            "refined_prompt": "Open KDE Plasma System Settings control panel.",
-            "plan": "1. Execute systemsettings.",
-            "action": act,
-            "reply": "Opening system settings, sir."
-        }
-
-    # 15. SYSTEM STATUS & SCREENSHOT
-    if any(k in t for k in ["system status", "status", "diagnostics", "system health"]):
-        act = execute_action("system_status", {})
-        return {
-            "refined_prompt": "Collect comprehensive telemetry: memory consumption, storage, uptime.",
-            "plan": "1. free -h. 2. df -h /. 3. uptime -p. 4. Compile telemetry.",
-            "action": act,
-            "reply": f"System status check complete, sir. {act.get('message', '')}"
-        }
-    if any(k in t for k in ["take screenshot", "screenshot", "capture screen"]):
-        act = execute_action("take_screenshot", {})
-        return {
-            "refined_prompt": "Capture full screen screenshot and save to ~/Pictures/Screenshots.",
-            "plan": "1. Call spectacle background capture. 2. Write PNG timestamped file.",
-            "action": act,
-            "reply": "Screenshot captured successfully, sir."
-        }
-    if any(k in t for k in ["show desktop", "minimize all", "desktop"]):
-        run_as_user(["qdbus6", "org.kde.kglobalaccel", "/component/kwin", "invokeShortcut", "Show Desktop"])
-        return {
-            "refined_prompt": "Toggle desktop visibility by minimizing all application windows.",
-            "plan": "1. Invoke Show Desktop KWin shortcut.",
-            "action": {"status": "success", "message": "Show Desktop invoked"},
-            "reply": "Presenting your desktop, sir."
-        }
-
-    # 16. VOLUME CONTROLS
-    if any(k in t for k in ["volume up", "increase volume", "louder"]):
-        act = execute_action("set_volume", {"level": "up"})
-        return {
-            "refined_prompt": "Increase default audio sink volume by 5%.",
-            "plan": "1. wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+.",
-            "action": act,
-            "reply": "Increasing volume, sir."
-        }
-    if any(k in t for k in ["volume down", "decrease volume", "quieter", "lower volume"]):
-        act = execute_action("set_volume", {"level": "down"})
-        return {
-            "refined_prompt": "Decrease default audio sink volume by 5%.",
-            "plan": "1. wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-.",
-            "action": act,
-            "reply": "Decreasing volume, sir."
-        }
-    if any(k in t for k in ["mute", "silence"]):
-        act = execute_action("set_volume", {"level": "mute"})
-        return {
-            "refined_prompt": "Mute master audio output.",
-            "plan": "1. wpctl set-mute @DEFAULT_AUDIO_SINK@ 1.",
-            "action": act,
-            "reply": "Audio muted, sir."
-        }
-    if any(k in t for k in ["unmute"]):
-        act = execute_action("set_volume", {"level": "unmute"})
-        return {
-            "refined_prompt": "Unmute master audio output.",
-            "plan": "1. wpctl set-mute @DEFAULT_AUDIO_SINK@ 0.",
-            "action": act,
-            "reply": "Audio unmuted, sir."
-        }
-
-    # 17. SYSTEM POWER STATE (REBOOT / SHUTDOWN)
-    if any(k in t for k in ["reboot", "restart computer", "restart system", "restart the system", "reboot the system"]):
-        return check_and_execute_or_defer(
-            "run_command", {"command": "systemctl reboot"},
-            "Initiate operating system reboot.",
-            "1. Request administrator authorization. 2. Issue systemctl reboot.",
-            "Rebooting operating system, sir."
-        )
-    if any(k in t for k in ["shutdown", "poweroff", "turn off computer", "power off", "shut down"]):
-        return check_and_execute_or_defer(
-            "run_command", {"command": "systemctl poweroff"},
-            "Initiate operating system power-off.",
-            "1. Request administrator authorization. 2. Issue systemctl poweroff.",
-            "Powering down operating system, sir."
-        )
-
-    # ----------------------------------------------------
-    # TIER 2: LOCAL LLM ANTIGRAVITY PROMPT REFINER & PLANNER
-    # ----------------------------------------------------
+    # Autonomous LLM Reasoning & Planning (replaces all hardcoded if-else pattern matching)
     return query_antigravity_llm(text, history)
 
 class JarvisHandler(BaseHTTPRequestHandler):

@@ -1,0 +1,17 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "contact@jaienterprises.com",
+                "Name": "J AI ENTERPRISES"
+            }
+        ],
+        "Id": "jok-ai-os",
+        "Name": "JOK-AI-OS Cyber Neon",
+        "License": "Proprietary",
+        "ServiceTypes": [
+            "Plasma/Wallpaper"
+        ],
+        "Version": "1.0"
+    }
+}

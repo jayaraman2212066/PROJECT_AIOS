@@ -1,10 +1,10 @@
-# Placeholder Plasma Look-and-Feel Package — PROJECT_AI_OS
+# Plasma Look-and-Feel Package — JOK-AI-OS
 
 <!--
-REPLACE LATER WITH: A full KDE Plasma Global Theme (Look and Feel package)
+KDE Plasma Global Theme (Look and Feel package)
 defining the Windows-like desktop UX requested in the project brief.
 
-Key Components to Provide:
+Key Components:
 1. contents/layouts/org.kde.plasma.desktop-layout.js
    - Configures a Windows-like bottom panel:
      * App Menu launcher (Kickoff / SimpleMenu) pinned at bottom-left
@@ -18,5 +18,5 @@ Key Components to Provide:
    - Standard KDE KPackage definition
 
 Destination in final image:
-- /usr/share/plasma/look-and-feel/org.myaios.desktop/
+- /usr/share/plasma/look-and-feel/org.jokaios.desktop/
 -->

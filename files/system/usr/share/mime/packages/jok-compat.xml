@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/vnd.android.package-archive">
+    <comment>Android Package (APK)</comment>
+    <glob pattern="*.apk"/>
+    <glob pattern="*.xapk"/>
+    <glob pattern="*.apks"/>
+  </mime-type>
+  <mime-type type="application/x-ios-app">
+    <comment>iOS Application Archive (IPA)</comment>
+    <glob pattern="*.ipa"/>
+  </mime-type>
+  <mime-type type="application/x-msdos-program">
+    <comment>Windows Executable (EXE)</comment>
+    <glob pattern="*.exe"/>
+  </mime-type>
+  <mime-type type="application/x-msi">
+    <comment>Windows Installer (MSI)</comment>
+    <glob pattern="*.msi"/>
+  </mime-type>
+</mime-info>

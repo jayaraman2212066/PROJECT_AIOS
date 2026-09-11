@@ -4,6 +4,15 @@ cosign.private
 *.iso
 *.iso-CHECKSUM
 /.bluebuild-scripts_*
-
-*.iso
 PROJECT_BRIEF.md
+
+# Scratch and test files
+scratch/
+test_*.py
+test_*.wav
+*.ppm
+__pycache__/
+*.pyc
+authorized_keys
+files/system/usr/libexec/jarvis/test_*.py
+

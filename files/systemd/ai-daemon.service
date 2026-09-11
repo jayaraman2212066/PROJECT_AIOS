@@ -1,5 +1,5 @@
 [Unit]
-Description=RamaLama Local AI Model Service (My AI OS)
+Description=RamaLama Local AI Model Service (JOK AI OS)
 Documentation=https://github.com/containers/ramalama
 After=default.target network.target
 
@@ -18,10 +18,10 @@ Type=simple
 # - huggingface://Qwen/Qwen2.5-Coder-7B-Instruct-GGUF (Specialized for coding)
 #
 # Override per user without root permissions by setting MODEL= in:
-# ~/.config/my-ai-os/ai-daemon.env
+# ~/.config/jok-ai-os/ai-daemon.env
 # ------------------------------------------------------------------------------
 Environment="MODEL=huggingface://Qwen/Qwen2.5-3B-Instruct-GGUF"
-EnvironmentFile=-%h/.config/my-ai-os/ai-daemon.env
+EnvironmentFile=-%h/.config/jok-ai-os/ai-daemon.env
 ExecStart=/usr/bin/ramalama serve ${MODEL}
 Restart=on-failure
 RestartSec=5s

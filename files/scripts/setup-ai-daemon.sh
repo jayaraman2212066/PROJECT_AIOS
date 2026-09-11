@@ -31,7 +31,18 @@ if [[ -f /usr/lib/systemd/user/jarvis-agent.service ]]; then
     echo "==> Successfully enabled jarvis-agent.service in /usr/lib/systemd/user/default.target.wants/"
 fi
 
-# Ensure executable bit on libexec scripts
+# Ensure executable bit on libexec scripts and CLI wrappers
 chmod +x /usr/libexec/jarvis/*.py 2>/dev/null || true
+chmod +x /usr/bin/jok-app-run 2>/dev/null || true
+update-mime-database /usr/share/mime 2>/dev/null || true
 
-echo "==> Successfully configured AI Daemon and J.A.R.V.I.S. services."
+echo "==> Applying JOK-AI-OS identity and branding..."
+if [[ -f /usr/share/jok-ai-os/os-release ]]; then
+    cp -f /usr/share/jok-ai-os/os-release /usr/lib/os-release
+    rm -f /etc/os-release 2>/dev/null || true
+    ln -sf ../usr/lib/os-release /etc/os-release 2>/dev/null || cp -f /usr/share/jok-ai-os/os-release /etc/os-release
+    echo "==> JOK-AI-OS 1.0 os-release applied."
+fi
+
+echo "==> Successfully configured AI Daemon, J.A.R.V.I.S., and Universal Compatibility services."
+

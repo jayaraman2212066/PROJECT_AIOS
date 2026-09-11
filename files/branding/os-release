@@ -1,19 +1,17 @@
 # ==============================================================================
-# Placeholder os-release override for PROJECT_AI_OS
-#
-# REPLACE LATER WITH: The final branded os-release file (e.g. copied to
-# /usr/lib/os-release or /etc/os-release) containing your production distro name,
-# homepage URL, bug tracker URL, and version identifiers.
+# JOK-AI-OS System Identification Configuration
 # ==============================================================================
-NAME="My AI OS"
-PRETTY_NAME="My AI OS 1.0 (Desktop Edition)"
-ID=my-ai-os
-ID_LIKE="fedora"
+NAME="JOK AI OS"
+PRETTY_NAME="JOK-AI-OS 1.0 (Autonomous AI Edition)"
+ID=jok-ai-os
 VERSION="1.0"
 VERSION_ID="1.0"
-VARIANT="AI Desktop Edition"
-VARIANT_ID=ai-desktop
-HOME_URL="https://github.com/my-ai-os"
-BUG_REPORT_URL="https://github.com/my-ai-os/issues"
-SUPPORT_URL="https://github.com/my-ai-os/discussions"
-LOGO=my-ai-os-logo
+VARIANT="Autonomous AI Edition"
+VARIANT_ID=jok-ai-os
+HOME_URL="https://github.com/jayaraman2212066/PROJECT_AIOS"
+BUG_REPORT_URL="https://github.com/jayaraman2212066/PROJECT_AIOS/issues"
+SUPPORT_URL="https://github.com/jayaraman2212066/PROJECT_AIOS"
+LOGO=j0k-assistant
+DEFAULT_HOSTNAME="jok-ai-os"
+DOCUMENTATION_URL="https://github.com/jayaraman2212066/PROJECT_AIOS"
+PRIVACY_POLICY_URL="https://github.com/jayaraman2212066/PROJECT_AIOS"

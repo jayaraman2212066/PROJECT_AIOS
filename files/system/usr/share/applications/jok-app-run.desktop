@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=JOK Universal App Adapter
+GenericName=Universal Application Runner
+Comment=Run and adapt Android APK, Windows EXE, iOS IPA, and Linux AppImage packages
+Exec=/usr/bin/jok-app-run %f
+Icon=j0k-assistant
+Terminal=false
+Categories=System;Utility;
+MimeType=application/vnd.android.package-archive;application/x-msdos-program;application/x-msi;application/x-ios-app;application/vnd.appimage;application/x-debian-package;application/x-rpm;
+NoDisplay=false
+StartupNotify=true

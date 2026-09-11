@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3840 2160" width="3840" height="2160">
+  <defs>
+    <!-- Background Space Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="46%" r="65%">
+      <stop offset="0%" stop-color="#0c192c"/>
+      <stop offset="45%" stop-color="#070d18"/>
+      <stop offset="85%" stop-color="#03060c"/>
+      <stop offset="100%" stop-color="#010306"/>
+    </radialGradient>
+
+    <!-- Center Ambient Glow -->
+    <radialGradient id="centerAura" cx="50%" cy="44%" r="40%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.32"/>
+      <stop offset="40%" stop-color="#f59e0b" stop-opacity="0.16"/>
+      <stop offset="80%" stop-color="#00e5ff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Star Linear Gradient -->
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="30%" stop-color="#fcd34d"/>
+      <stop offset="65%" stop-color="#f59e0b"/>
+      <stop offset="90%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+
+    <!-- Base Plate Gradient -->
+    <linearGradient id="plateGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <!-- Core Disc Gradient -->
+    <radialGradient id="coreGrad" cx="50%" cy="48%" r="52%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="65%" stop-color="#070f1e"/>
+      <stop offset="95%" stop-color="#00e5ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#00e5ff"/>
+    </radialGradient>
+
+    <!-- Neon Glow Filters -->
+    <filter id="neonCyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#00e5ff" flood-opacity="0.9"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="32" flood-color="#00e5ff" flood-opacity="0.5"/>
+    </filter>
+
+    <filter id="neonGoldGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#f59e0b" flood-opacity="0.85"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="40" flood-color="#f59e0b" flood-opacity="0.45"/>
+    </filter>
+
+    <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.95"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="24" flood-color="#00e5ff" flood-opacity="0.75"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="3840" height="2160" fill="url(#bgGrad)"/>
+  <rect width="3840" height="2160" fill="url(#centerAura)"/>
+
+  <!-- High-Tech Cyber Grid Lines -->
+  <g opacity="0.18" stroke="#00e5ff" stroke-width="1.5">
+    <line x1="0" y1="280" x2="3840" y2="280" stroke-dasharray="12 18"/>
+    <line x1="0" y1="1880" x2="3840" y2="1880" stroke-dasharray="12 18"/>
+    <line x1="480" y1="0" x2="480" y2="2160" stroke-dasharray="8 16"/>
+    <line x1="3360" y1="0" x2="3360" y2="2160" stroke-dasharray="8 16"/>
+    <line x1="960" y1="0" x2="960" y2="2160" stroke-dasharray="4 24" opacity="0.4"/>
+    <line x1="2880" y1="0" x2="2880" y2="2160" stroke-dasharray="4 24" opacity="0.4"/>
+  </g>
+
+  <!-- Hexagonal & Circuit Elements -->
+  <g opacity="0.35" stroke="#f59e0b" stroke-width="2" fill="none">
+    <path d="M 480 320 L 640 320 L 720 400 L 960 400" />
+    <circle cx="960" cy="400" r="6" fill="#f59e0b"/>
+    <path d="M 3360 320 L 3200 320 L 3120 400 L 2880 400" />
+    <circle cx="2880" cy="400" r="6" fill="#f59e0b"/>
+    <path d="M 480 1840 L 640 1840 L 720 1760 L 960 1760" />
+    <circle cx="960" cy="1760" r="6" fill="#00e5ff"/>
+    <path d="M 3360 1840 L 3200 1840 L 3120 1760 L 2880 1760" />
+    <circle cx="2880" cy="1760" r="6" fill="#00e5ff"/>
+  </g>
+
+  <!-- Corner Reticle Brackets -->
+  <g stroke="#00e5ff" stroke-width="4" fill="none" opacity="0.7">
+    <!-- Top-Left -->
+    <path d="M 80 160 L 80 80 L 160 80"/>
+    <rect x="88" y="88" width="12" height="12" fill="#00e5ff"/>
+    <text x="80" y="210" font-family="monospace" font-size="22" fill="#00e5ff" opacity="0.8">SYS // JOK-AI-OS</text>
+
+    <!-- Top-Right -->
+    <path d="M 3760 160 L 3760 80 L 3680 80"/>
+    <rect x="3740" y="88" width="12" height="12" fill="#00e5ff"/>
+    <text x="3760" y="210" font-family="monospace" font-size="22" fill="#00e5ff" opacity="0.8" text-anchor="end">NODE // AUTONOMOUS_V1</text>
+
+    <!-- Bottom-Left -->
+    <path d="M 80 2000 L 80 2080 L 160 2080"/>
+    <rect x="88" y="2060" width="12" height="12" fill="#00e5ff"/>
+    <text x="80" y="1970" font-family="monospace" font-size="22" fill="#00e5ff" opacity="0.8">AI-CORE // QWEN_LOCAL</text>
+
+    <!-- Bottom-Right -->
+    <path d="M 3760 2000 L 3760 2080 L 3680 2080"/>
+    <rect x="3740" y="2060" width="12" height="12" fill="#00e5ff"/>
+    <text x="3760" y="1970" font-family="monospace" font-size="22" fill="#00e5ff" opacity="0.8" text-anchor="end">SECURE // OSTREE_ATOMIC</text>
+  </g>
+
+  <!-- Central Emblem Complex (cx=1920, cy=920) -->
+  <g transform="translate(1920, 880)">
+    <!-- Outer Cyan Ring -->
+    <circle cx="0" cy="0" r="390" fill="none" stroke="#00e5ff" stroke-width="4" stroke-dasharray="16 10" filter="url(#neonCyanGlow)" opacity="0.75"/>
+    <circle cx="0" cy="0" r="365" fill="none" stroke="#f59e0b" stroke-width="2.5" opacity="0.6"/>
+
+    <!-- Obsidian Base Plate -->
+    <circle cx="0" cy="0" r="340" fill="url(#plateGrad)" stroke="#00e5ff" stroke-width="6"/>
+
+    <!-- Gold Accent Ring -->
+    <circle cx="0" cy="0" r="310" fill="none" stroke="#f59e0b" stroke-width="3" opacity="0.9"/>
+
+    <!-- 5-Pointed Star -->
+    <!-- R_outer = 270, R_inner = 120 -->
+    <polygon points="
+      0,-270
+      71,-97
+      257,-83
+      115,37
+      159,218
+      0,115
+      -159,218
+      -115,37
+      -257,-83
+      -71,-97"
+      fill="url(#starGrad)" stroke="#ffffff" stroke-width="4" filter="url(#neonGoldGlow)"/>
+
+    <!-- Inner Obsidian Shield Core -->
+    <circle cx="0" cy="15" r="160" fill="url(#coreGrad)" stroke="#00e5ff" stroke-width="5" filter="url(#neonCyanGlow)"/>
+
+    <!-- The Great "J" -->
+    <text x="0" y="85" font-family="Segoe UI, Ubuntu, sans-serif" font-size="220" font-weight="900"
+          fill="#ffffff" text-anchor="middle" filter="url(#textShadow)">J</text>
+  </g>
+
+  <!-- Main System Typography -->
+  <g transform="translate(1920, 1420)">
+    <!-- Title -->
+    <text x="0" y="0" font-family="Segoe UI, Ubuntu, sans-serif" font-size="94" font-weight="900"
+          letter-spacing="18" fill="#ffffff" text-anchor="middle" filter="url(#neonCyanGlow)">
+      JOK-AI-OS
+    </text>
+
+    <!-- Subtitle Line -->
+    <line x1="-360" y1="28" x2="360" y2="28" stroke="#00e5ff" stroke-width="3" opacity="0.85"/>
+    <circle cx="-360" cy="28" r="5" fill="#f59e0b"/>
+    <circle cx="360" cy="28" r="5" fill="#f59e0b"/>
+    <circle cx="0" cy="28" r="6" fill="#00e5ff"/>
+
+    <!-- Description -->
+    <text x="0" y="78" font-family="Segoe UI, Ubuntu, sans-serif" font-size="28" font-weight="600"
+          letter-spacing="12" fill="#94a3b8" text-anchor="middle">
+      UNIVERSAL AUTONOMOUS AI OPERATING SYSTEM
+    </text>
+
+    <!-- Technical Badges -->
+    <text x="0" y="125" font-family="monospace" font-size="20" letter-spacing="6" fill="#38bdf8" text-anchor="middle" opacity="0.9">
+      [ ON-DEVICE NEURAL BRAIN // JOK-AI-OS ARCHITECTURE // ZERO CLOUD DEPENDENCY ]
+    </text>
+  </g>
+</svg>

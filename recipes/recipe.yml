@@ -1,13 +1,13 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 # image will be published to ghcr.io/<user>/<name>
-name: my-ai-os
+name: jok-ai-os
 # description will be included in the image's metadata
-description: Custom, AI-integrated Linux desktop OS based on Fedora Kinoite.
+description: JOK-AI-OS - Universal Autonomous AI Operating System
 
 # the base image to build on top of (FROM) and the version tag to use
 base-image: ghcr.io/ublue-os/kinoite-main
-image-version: 44 # Pinned to Fedora Kinoite 44
+image-version: 44 # Version 44 core
 
 # module configuration, executed in orde
 # you can include multiple instances of the same module
@@ -20,10 +20,10 @@ modules:
   # Module 1: Add RPM Fusion Free and Nonfree repositories
   - type: rpm-ostree
     install:
-      - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-%OS_VERSION%.noarch.rpm
-      - https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-%OS_VERSION%.noarch.rpm
+      - https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm
+      - https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-44.noarch.rpm
 
-  # Module 2: Core container tools, Git, Curl, and RamaLama AI runtime
+  # Module 2: Core container tools, Git, Curl, RamaLama AI runtime, and Universal App Compatibility
   - type: rpm-ostree
     install:
       - podman
@@ -34,17 +34,22 @@ modules:
       - espeak-ng
       - alsa-utils
       - python3-tkinter
+      - fuse
+      - fuse-libs
+      - android-tools
+      - python3-pillow
+      - python3-pyxdg
 
-  # Module 3: Rebranding - remove upstream Fedora logos (replaces with generic/custom branding)
+  # Module 3: Rebranding - remove upstream logos (replaces with JOK-AI-OS branding)
   - type: rpm-ostree
     remove:
       - fedora-logos
 
-  # Module 4: Rebranding - copy branding assets to /usr/share/my-ai-os/
+  # Module 4: Rebranding - copy branding assets to /usr/share/jok-ai-os/
   - type: files
     files:
       - source: branding
-        destination: /usr/share/my-ai-os
+        destination: /usr/share/jok-ai-os
 
   # Module 5: AI Daemon Integration - Enable RamaLama user unit
   - type: script

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# JOK-AI-OS Universal App Run Wrapper
+# Copyright (c) 2026 J AI ENTERPRISES. All Rights Reserved.
+# ==============================================================================
+
+if [[ -z "$1" ]]; then
+    echo "Usage: jok-app-run <file_path.apk|exe|msi|ipa|appimage|deb|rpm>"
+    exit 1
+fi
+
+exec /usr/bin/python3 /usr/libexec/jarvis/jok-app-adapter.py "$@"
